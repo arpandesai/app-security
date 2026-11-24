@@ -103,6 +103,8 @@ PUBLIC_BASE_URL=http://localhost:3000 OSV_API_URL=http://localhost:8787 npm run 
 MFS_URL=http://localhost:3000 npm run test:e2e
 ```
 
+To test the Redis code path too, run `node scripts/mock-upstash.mjs &` (a local stand-in for the Upstash REST API) and start the server with `KV_REST_API_URL=http://localhost:8788 KV_REST_API_TOKEN=test`. Run this whenever `lib/store.ts` changes.
+
 The test covers: tool and prompt discovery, stack detection, rejection of invalid submissions, category-by-category submission, server-side secret masking, dependency CVEs, the report page, lead capture, parallel submissions, and the fallback when OSV is unreachable.
 
 ## Project layout
