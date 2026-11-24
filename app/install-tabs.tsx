@@ -2,13 +2,21 @@
 
 import { useState } from "react";
 
-type Tool = { name: string; how: string; snippet: (url: string) => string };
+type Tool = { name: string; how: string; snippet: (url: string) => string; step2?: string };
+
+const DEFAULT_STEP2 = "Open your app's project in your agent and type";
 
 const TOOLS: Tool[] = [
   {
     name: "Claude Code",
     how: "Run in your project's terminal:",
     snippet: (u) => `claude mcp add --transport http mobilefirst-secure ${u}`,
+  },
+  {
+    name: "Claude",
+    how: "In the Claude app (desktop or web): Customize → Connectors → Add custom connector, then paste:",
+    snippet: (u) => u,
+    step2: "Give Claude your code (in the desktop app, + → Add folder; or connect your GitHub repo) and type",
   },
   {
     name: "Codex",
@@ -77,7 +85,7 @@ export function InstallTabs({ url }: { url: string }) {
         <pre>{code}</pre>
       </div>
       <p className="step">
-        <b>2.</b> Open your app's project in your agent and type <b>audit</b>.
+        <b>2.</b> {t.step2 ?? DEFAULT_STEP2} <b>audit</b>.
       </p>
     </div>
   );

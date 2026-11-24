@@ -9,7 +9,7 @@ A hosted MCP server that runs a security audit of a mobile app's **source code**
 ## How an audit runs
 
 ```
-User types "audit" in Claude Code / Codex / ChatGPT desktop / Cursor / VS Code
+User types "audit" in Claude Code / Claude app / Codex / ChatGPT desktop / Cursor / VS Code
         │
         ▼
 1. Agent lists marker files (package.json, pubspec.yaml, AndroidManifest.xml, Info.plist…)
@@ -58,6 +58,7 @@ Each agent needs one setup step, then the user types `audit` in their project.
 | Agent | Setup |
 |---|---|
 | Claude Code | `claude mcp add --transport http mobilefirst-secure https://app-security.mobilefirst.in/mcp` |
+| Claude app (desktop, web) | Customize → Connectors → Add custom connector → paste the URL. On Team and Enterprise plans an Owner adds it under Organization settings → Connectors (Add → Custom → Web), then members connect. Free plans allow one custom connector. Claude needs the code too: add the project folder in the desktop app (+ → Add folder) or connect the GitHub repo. |
 | Codex (CLI, IDE extension) | `codex mcp add mobilefirst-secure --url https://app-security.mobilefirst.in/mcp` |
 | ChatGPT | In the ChatGPT desktop app: Settings → MCP servers → Add server → Streamable HTTP → paste the URL. ChatGPT chat on the web can't see a local codebase, so the desktop app (through Codex) is the path for code audits. |
 | Cursor | `.cursor/mcp.json`: `{"mcpServers":{"mobilefirst-secure":{"url":"https://app-security.mobilefirst.in/mcp"}}}` |
