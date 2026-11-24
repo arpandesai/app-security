@@ -56,7 +56,15 @@ function upstash(): KV {
       await r.expire(key, ttl);
     },
     async hgetall(key) {
-      return ((await r.hgetall<Record<string, string>>(key)) as Record<string, string>) || {};
+      // With automaticDeserialization off, Upstash returns HGETALL as a flat [field, value, ...] array.
+      const raw = (await r.hgetall(key)) as unknown;
+      if (!raw) return {};
+      if (Array.isArray(raw)) {
+        const out: Record<string, string> = {};
+        for (let i = 0; i + 1 < raw.length; i += 2) out[String(raw[i])] = String(raw[i + 1]);
+        return out;
+      }
+      return raw as Record<string, string>;
     },
     async rpush(key, value) {
       await r.rpush(key, value);
