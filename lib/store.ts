@@ -14,8 +14,26 @@ interface KV {
   rpush(key: string, value: string): Promise<void>;
 }
 
-const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+/**
+ * Find Upstash REST credentials. Vercel's Marketplace integration names them KV_REST_API_URL/TOKEN,
+ * or <PREFIX>_KV_REST_API_URL/TOKEN when a custom prefix is chosen; Upstash's own docs use
+ * UPSTASH_REDIS_REST_URL/TOKEN. Accept all of them.
+ */
+function findRedisEnv(): { url?: string; token?: string } {
+  const env = process.env;
+  if (env.KV_REST_API_URL && env.KV_REST_API_TOKEN) return { url: env.KV_REST_API_URL, token: env.KV_REST_API_TOKEN };
+  if (env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN)
+    return { url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN };
+  for (const [k, v] of Object.entries(env)) {
+    const m = k.match(/^(.*)(KV_REST_API_URL|REDIS_REST_URL)$/);
+    if (!m || !v) continue;
+    const tok = env[`${m[1]}${m[2].replace(/URL$/, "TOKEN")}`];
+    if (tok) return { url: v, token: tok };
+  }
+  return {};
+}
+
+const { url, token } = findRedisEnv();
 
 function upstash(): KV {
   const r = new Redis({ url: url!, token: token!, automaticDeserialization: false });
@@ -95,6 +113,16 @@ function memory(): KV {
 
 export const kv: KV = url && token ? upstash() : memory();
 export const usingMemoryStore = !(url && token);
+
+/**
+ * The in-memory store is per server instance. On Vercel, parallel requests land on different
+ * instances, so audits and reports get lost. Refuse to run there instead of failing silently.
+ */
+export const storageReady = !usingMemoryStore || !process.env.VERCEL;
+export const STORAGE_NOT_READY =
+  "MobileFirst Secure can't save audits right now because its server storage isn't configured. Please try again later. " +
+  "(Operator: connect Upstash Redis to the Vercel project and redeploy.)";
+if (!storageReady) console.error("[mobilefirst-secure] No Redis configured on Vercel: audits are disabled until Upstash is connected.");
 
 export const TTL = {
   audit: 60 * 60 * 48, // 2 days to finish an audit

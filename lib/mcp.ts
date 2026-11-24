@@ -1,13 +1,13 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
-import type { AuditSession, CheckResult, Dependency } from "./types";
+import type { AuditSession, CheckResult, Dependency, Report } from "./types";
 import { detectProfile } from "./detect";
 import { planRules, renderChecklist, agentInstructions } from "./checklist";
 import { getRule, categoryName, RULESET_VERSION } from "./rules";
 import { cleanSnippet } from "./mask";
 import { scanDependencies } from "./osv";
 import { buildReport, chatSummary } from "./report";
-import { kv, TTL } from "./store";
+import { kv, TTL, storageReady, STORAGE_NOT_READY } from "./store";
 import { BASE_URL, BRAND, newId } from "./config";
 
 export const SERVER_INSTRUCTIONS = `${BRAND} runs a read-only security audit of a mobile app's source code (React Native/Expo, Flutter, native Android, native iOS). The audit runs entirely inside your coding agent on the user's machine: this server supplies the rules and writes the report.
@@ -129,6 +129,7 @@ export function registerMobileFirstSecure(server: McpServer) {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async (args) => {
+      if (!storageReady) return errorText(STORAGE_NOT_READY);
       const profile = detectProfile(args.project_files, args.dependency_names);
       if (!profile) {
         return text(
@@ -173,6 +174,7 @@ export function registerMobileFirstSecure(server: McpServer) {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     async (args) => {
+      if (!storageReady) return errorText(STORAGE_NOT_READY);
       const session = await kv.getJSON<AuditSession>(sessionKey(args.audit_id));
       if (!session) return errorText(`Unknown or expired audit_id "${args.audit_id}". Call \`audit\` to start a new audit.`);
 
@@ -232,7 +234,14 @@ export function registerMobileFirstSecure(server: McpServer) {
       const won = await kv.setNX(reportLockKey(session.id), newReportId, TTL.report);
       const reportId = won ? newReportId : (await kv.get(reportLockKey(session.id)))!;
 
-      let report = won ? null : await kv.getJSON<ReturnType<typeof buildReport>>(reportKey(reportId));
+      let report: Report | null = null;
+      if (!won) {
+        // Another parallel call is generating this report; wait briefly for it instead of building a duplicate.
+        for (let i = 0; i < 20 && !report; i++) {
+          report = await kv.getJSON<Report>(reportKey(reportId));
+          if (!report) await new Promise((r) => setTimeout(r, 500));
+        }
+      }
       if (!report) {
         const dep = await scanDependencies(await loadDeps(session.id));
         report = buildReport(reportId, session, results, dep);

@@ -42,7 +42,7 @@ The codebase never leaves the user's machine. Only rule results, file paths, sho
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Yes (prod) | Upstash Redis, added by the Marketplace integration. `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` also work. |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Yes (prod) | Upstash Redis, added by the Marketplace integration. Prefixed names (`<PREFIX>_KV_REST_API_URL`) and `UPSTASH_REDIS_REST_URL`/`_TOKEN` also work. Without Redis on Vercel, audits are refused with a clear message: parallel requests hit different server instances, so in-memory storage loses audits. |
 | `PUBLIC_BASE_URL` | No | Defaults to `https://app-security.mobilefirst.in`. Used to build report links. |
 | `LEAD_WEBHOOK_URL` | Recommended | Every lead is POSTed here as JSON with a `text` field, so a Slack incoming webhook works as is. Zapier and Make work too. |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Recommended | Sends the "Email me the report" email through Resend. Example: `EMAIL_FROM="MobileFirst Secure <secure@mobilefirst.in>"`. Without these, emails are saved as leads and the user can save a PDF instead. |
@@ -50,6 +50,8 @@ The codebase never leaves the user's machine. Only rule results, file paths, sho
 | `REPORT_TTL_DAYS` | No | How long report links stay live. Default: 90. |
 
 All leads are also stored in the Redis list `leads`, which you can read in the Upstash console.
+
+Check the deployment at `/api/health`: `{"ok":true,"storage":"redis"}` means audits are being stored correctly. A 503 with `"storage":"memory"` means Redis isn't connected.
 
 ## Connect a coding agent
 
@@ -101,7 +103,7 @@ PUBLIC_BASE_URL=http://localhost:3000 OSV_API_URL=http://localhost:8787 npm run 
 MFS_URL=http://localhost:3000 npm run test:e2e
 ```
 
-The test covers: tool and prompt discovery, stack detection, rejection of invalid submissions, category-by-category submission, server-side secret masking, dependency CVEs, the report page, lead capture, and the fallback when OSV is unreachable.
+The test covers: tool and prompt discovery, stack detection, rejection of invalid submissions, category-by-category submission, server-side secret masking, dependency CVEs, the report page, lead capture, parallel submissions, and the fallback when OSV is unreachable.
 
 ## Project layout
 
