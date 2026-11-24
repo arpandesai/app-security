@@ -182,6 +182,38 @@ const badLead = await fetch(`${BASE}/api/lead`, {
 assert.equal(badLead.status, 400);
 ok("lead capture works; bad email rejected");
 
+// Parallel submissions (agents that check categories concurrently) must all land on the same audit
+const p = textOf(
+  await client.callTool({
+    name: "audit",
+    arguments: { project_files: projectFiles, dependency_names: Object.keys(pkg.dependencies), app_name: "Parallel", agent: "e2e" },
+  })
+);
+const pId = p.match(/Audit ID: (\S+)/)[1];
+const pRules = [...p.matchAll(/^### (MFS-[A-Z]+-\d+)/gm)].map((m) => m[1]);
+const pGroups = new Map();
+for (const id of pRules) pGroups.set(id.split("-")[1], [...(pGroups.get(id.split("-")[1]) || []), id]);
+const pOuts = await Promise.all(
+  [...pGroups].map(([cat, ids]) =>
+    client.callTool({
+      name: "submit_findings",
+      arguments: {
+        audit_id: pId,
+        results: ids.filter((id) => id !== "MFS-CODE-01").map((id) => ({ rule_id: id, ...(TRUTH[id] || { status: "pass" }) })),
+        ...(cat === "CODE" ? { dependencies: [{ ecosystem: "npm", name: "axios", version: "0.21.0" }] } : {}),
+      },
+    }).then(textOf)
+  )
+);
+assert.ok(!pOuts.some((t) => t.startsWith("Unknown")), "no parallel call may lose the audit");
+const pFinal = pOuts.find((t) => t.includes("Full report")) || textOf(await client.callTool({ name: "submit_findings", arguments: { audit_id: pId, results: [] } }));
+assert.match(pFinal, /Full report with fix guidance/);
+ok(`${pOuts.length} parallel submit_findings calls: all accepted, report generated`);
+
+const health = await (await fetch(`${BASE}/api/health`)).json();
+assert.equal(health.ok, true);
+ok(`health: storage=${health.storage}`);
+
 const missing = await fetch(`${BASE}/r/AAAAAAAAAAAAAAAAAAAAAA`);
 assert.match(await missing.text(), /Report not found/);
 ok("unknown report shows not-found page");
