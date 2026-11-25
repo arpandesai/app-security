@@ -57,7 +57,7 @@ export default async function Admin() {
                   <td>{reports.length}</td>
                   <td>
                     {last ? (
-                      <a href={`/r/${last.reportId}`}>
+                      <a href={`/admin/reports/${last.reportId}`}>
                         {last.appName} · {last.score} · {fmt(last.createdAt)}
                       </a>
                     ) : (

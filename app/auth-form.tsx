@@ -6,7 +6,7 @@ import { useRef, useState } from "react";
  * Email first, then a 6-digit code from the email.
  * "start" is the landing page (new or returning: either way they end up on the dashboard); "login" is /login.
  */
-export function AuthForm({ mode, cta }: { mode: "start" | "login"; cta?: string }) {
+export function AuthForm({ mode, cta, next }: { mode: "start" | "login"; cta?: string; next?: string }) {
   const [step, setStep] = useState<"email" | "code">("email");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -42,7 +42,7 @@ export function AuthForm({ mode, cta }: { mode: "start" | "login"; cta?: string 
     setBusy(true);
     setError("");
     try {
-      const data = await call("/api/auth/verify", { email, code: value });
+      const data = await call("/api/auth/verify", { email, code: value, next });
       window.location.href = data.redirect || "/dashboard";
     } catch (err: any) {
       setError(err.message);

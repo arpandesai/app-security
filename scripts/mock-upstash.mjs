@@ -26,6 +26,8 @@ function run([cmd, ...a]) {
       for (let i = 0; i < fv.length; i += 2) { if (!e.v.has(String(fv[i]))) added++; e.v.set(String(fv[i]), String(fv[i + 1])); }
       db.set(k, e); return added;
     }
+    case "HGET": { const e = get(a[0]); return e ? (e.v.get(String(a[1])) ?? null) : null; }
+    case "HDEL": { const e = get(a[0]); if (!e) return 0; let n = 0; for (const f of a.slice(1)) if (e.v.delete(String(f))) n++; return n; }
     case "HGETALL": { const e = get(a[0]); return e ? [...e.v].flat() : []; }
     case "EXPIRE": { const e = get(a[0]); if (!e) return 0; e.exp = now() + Number(a[1]) * 1000; return 1; }
     case "DEL": { let n = 0; for (const k of a) if (db.delete(k)) n++; return n; }

@@ -15,7 +15,10 @@ export async function POST(req: Request) {
   const res = await verifyOtp(email, code);
   if ("error" in res) return Response.json({ error: res.error }, { status: res.status });
   const token = await createSession(res.account.id);
-  return new Response(JSON.stringify({ ok: true, redirect: "/dashboard" }), {
+  // Only same-site paths, so a crafted link can't send people elsewhere after sign-in.
+  const next = String(body?.next || "");
+  const redirect = /^\/(?![\/\\])[\w\-./?=&%#]*$/.test(next) ? next : "/dashboard";
+  return new Response(JSON.stringify({ ok: true, redirect }), {
     headers: { "content-type": "application/json", "set-cookie": sessionCookie(token, req) },
   });
 }

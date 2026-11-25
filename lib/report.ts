@@ -190,7 +190,7 @@ export function chatSummary(r: Report, url: string): string {
   } else {
     lines.push(`No issues found across ${r.checksRun} checks.`);
   }
-  lines.push("", `Full report with fix guidance: ${url}`);
+  lines.push("", `Full report with fix guidance: ${url}`, "The report is private: sign in with your account email to open it, and invite your team from there.");
   if (r.findings.length) lines.push(`Want MobileFirst engineers to fix these? Book a call: ${bookHref("chat", r.id, true)}`);
   return lines.join("\n");
 }

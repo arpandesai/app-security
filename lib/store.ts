@@ -12,6 +12,8 @@ interface KV {
   get(key: string): Promise<string | null>;
   hset(key: string, field: string, value: string, ttlSec: number): Promise<void>;
   hgetall(key: string): Promise<Record<string, string>>;
+  hget(key: string, field: string): Promise<string | null>;
+  hdel(key: string, field: string): Promise<void>;
   rpush(key: string, value: string): Promise<void>;
   del(key: string): Promise<void>;
 }
@@ -70,6 +72,13 @@ function upstash(): KV {
       }
       return raw as Record<string, string>;
     },
+    async hget(key, field) {
+      const v = await r.hget<string>(key, field);
+      return v == null ? null : String(v);
+    },
+    async hdel(key, field) {
+      await r.hdel(key, field);
+    },
     async rpush(key, value) {
       await r.rpush(key, value);
     },
@@ -117,6 +126,13 @@ function memory(): KV {
     },
     async hgetall(key) {
       return { ...(live(key)?.v ?? {}) };
+    },
+    async hget(key, field) {
+      return live(key)?.v?.[field] ?? null;
+    },
+    async hdel(key, field) {
+      const e = live(key);
+      if (e) delete e.v[field];
     },
     async rpush(key, value) {
       const e = live(key) ?? { v: [], exp: 0 };
