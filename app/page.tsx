@@ -33,10 +33,7 @@ export default function Home() {
       <section className="lp-hero" id="start">
         <div className="lp-pitch">
           <h1>Get your app security report in 5 minutes.</h1>
-          <p className="lp-sub">
-            Your AI coding agent checks your React Native, Flutter, iOS or Android code against 46 security checks. You get a verdict, a score
-            and the exact lines to fix.
-          </p>
+          <p className="lp-sub">A clear verdict, a score and the exact lines to fix.</p>
           <AuthForm mode="start" />
           <p className="lp-assure">Free, no credit card. Your codebase never leaves your machine.</p>
           <p className="lp-tools">Works in Claude Code, Codex, ChatGPT, Cursor, VS Code and the Claude app.</p>
