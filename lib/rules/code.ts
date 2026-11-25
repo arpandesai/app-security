@@ -429,7 +429,7 @@ export const PRIVACY_RULES: Rule[] = [
     id: "MFS-PRIVACY-04",
     category: "PRIVACY",
     severity: "medium",
-    title: "Personal data sent to analytics or crash tools",
+    title: "Personal data sent to third parties",
     check:
       "Review analytics, crash-reporting, session-replay and AI provider calls, and the personal data each receives.",
     failIf:
