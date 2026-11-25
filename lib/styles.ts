@@ -115,6 +115,7 @@ ul.audits li:first-child{border-top:0;padding-top:0}
 .lp-logo span{color:var(--lp-blue)}
 .lp-signin{font-size:15px;font-weight:500;color:var(--lp-ink2);text-decoration:none;padding:8px 2px}
 .lp-signin:hover{color:var(--lp-ink)}
+.lp-nav{display:flex;align-items:center;gap:22px}
 .lp-hero{display:grid;gap:44px;padding:36px 0 72px;align-items:center}
 @media(min-width:980px){.lp-hero{grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:64px;padding:56px 0 96px}}
 .lp h1{font-family:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;font-weight:700;font-size:clamp(38px,5.4vw,64px);line-height:1.03;

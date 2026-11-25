@@ -450,6 +450,18 @@ const pFinal = pOuts.find((t) => t.includes("Full report")) || textOf(await clie
 assert.match(pFinal, /Full report with fix guidance/);
 ok(`${pOuts.length} parallel submit_findings calls: all accepted, report generated`);
 
+// The Framework page is served at /framework, linked from the landing page, and matches the live ruleset.
+const home = await (await fetch(`${BASE}/`)).text();
+assert.ok(home.includes('href="/framework"'), "landing page links to the Framework page");
+const fw = await fetch(`${BASE}/framework`);
+assert.equal(fw.status, 200);
+const fwHtml = await fw.text();
+const { ruleset } = await (await fetch(`${BASE}/api/health`)).json();
+assert.ok(fwHtml.includes(`version ${ruleset}`), `Framework page is out of date: rebuild it with npm run framework (ruleset ${ruleset})`);
+assert.match(fwHtml, /src="\/framework\.png"/);
+assert.equal((await fetch(`${BASE}/framework.png`)).headers.get("content-type"), "image/png");
+ok("Framework page at /framework with its image, linked from the landing page");
+
 const health = await (await fetch(`${BASE}/api/health`)).json();
 assert.equal(health.ok, true);
 ok(`health: storage=${health.storage}`);

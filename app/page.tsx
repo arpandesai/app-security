@@ -25,9 +25,14 @@ export default function Home() {
         <span className="lp-logo">
           MobileFirst <span>Secure</span>
         </span>
-        <a className="lp-signin" href="/login">
-          Sign in
-        </a>
+        <nav className="lp-nav" aria-label="Site">
+          <a className="lp-signin" href="/framework">
+            Framework
+          </a>
+          <a className="lp-signin" href="/login">
+            Sign in
+          </a>
+        </nav>
       </header>
 
       <section className="lp-hero" id="start">
