@@ -21,6 +21,7 @@ export const BOOK_SOURCES = [
   "report", // report header: Get it fixed
   "finding", // one finding: Get this fixed
   "report-end", // bottom of the report
+  "new-audit", // Run a new audit guide: stuck on a step
   "chat", // the summary the coding agent shows after an audit
   "app", // an app card in the panel
   "sidebar", // panel sidebar help card

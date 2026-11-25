@@ -18,6 +18,11 @@ export default async function Audits() {
       page="audits"
       title="Audits"
       intro={reports.length ? `${plural(reports.length, "audit")}, newest first. Reports stay open for 90 days.` : "Every audit you run shows up here."}
+      actions={
+        <a className="btn" href="/dashboard/new-audit">
+          Run a new audit
+        </a>
+      }
     >
       {reports.length ? (
         <section className="card tbl">
@@ -26,7 +31,7 @@ export default async function Audits() {
       ) : (
         <section className="card">
           <p className="muted" style={{ margin: 0 }}>
-            No audits yet. <a href="/dashboard/setup">Connect your coding agent</a>, open your app's project and type <code>audit</code>.
+            No audits yet. <a href="/dashboard/new-audit">Run your first audit</a>: pick your AI tool and follow the steps.
           </p>
         </section>
       )}

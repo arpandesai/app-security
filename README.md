@@ -29,6 +29,8 @@ User types "audit" in Claude Code / Claude app / Codex / ChatGPT desktop / Curso
 
 The codebase never leaves the user's machine. Only rule results, file paths, short evidence snippets (with secrets masked) and the dependency list are sent.
 
+**Run a new audit.** In the panel, Run a new audit opens a guide: the customer picks their AI tool (Claude Code, Codex, ChatGPT, Claude, Cursor, VS Code or another MCP client) and gets that tool's steps with their personal link filled in. Each step confirms itself live: the server notes when an agent connects with the personal URL (from the MCP initialize request) and tracks the audit's progress, and the page polls `/api/activity`.
+
 **Verdict:** any critical issue makes the verdict "Not safe to launch". If the worst issue is high, it's "Fix before launch". Otherwise it's "Safe to launch".
 **Score:** the severity-weighted share of applicable checks passed. It's capped at 39 when there's a critical issue and at 74 when there's a high one.
 
@@ -155,7 +157,7 @@ MFS_URL=http://localhost:3000 ADMIN_PASSWORD=test npm run test:e2e
 
 To test the Redis code path too, run `node scripts/mock-upstash.mjs &` (a local stand-in for the Upstash REST API) and start the server with `KV_REST_API_URL=http://localhost:8788 KV_REST_API_TOKEN=test`. Run this whenever `lib/store.ts` changes.
 
-The test covers: sign-up by emailed code (wrong, reused and throttled codes, invalid and bot sign-ups), sessions and sign-out, the shared and unknown URLs pointing users to sign up, tool and prompt discovery, stack detection, a web app audit (web-only checks in, mobile-only checks out, web wording and standards), rejection of invalid submissions, category-by-category submission, server-side secret masking, dependency CVEs, the registry check for invented packages, private report links (signed-out gate, owner redirect, no access for others), reviewer invites (email sent, invitee sign-up with return to the report, Shared with you, owner-only invite and remove, removal ends access), booking links and click logging, the customer panel (overview, audits, setup, account edits), admin report view, the admin page (password, customer list, switching a URL off and on), parallel submissions, and the fallback when OSV is unreachable.
+The test covers: sign-up by emailed code (wrong, reused and throttled codes, invalid and bot sign-ups), sessions and sign-out, the shared and unknown URLs pointing users to sign up, tool and prompt discovery, stack detection, a web app audit (web-only checks in, mobile-only checks out, web wording and standards), rejection of invalid submissions, category-by-category submission, server-side secret masking, dependency CVEs, the registry check for invented packages, private report links (signed-out gate, owner redirect, no access for others), reviewer invites (email sent, invitee sign-up with return to the report, Shared with you, owner-only invite and remove, removal ends access), booking links and click logging, the Run a new audit guide (agent connection detected, audit progress, report ready), the customer panel (overview, audits, setup, account edits), admin report view, the admin page (password, customer list, switching a URL off and on), parallel submissions, and the fallback when OSV is unreachable.
 
 ## Project layout
 

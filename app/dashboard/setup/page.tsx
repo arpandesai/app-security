@@ -16,7 +16,8 @@ export default async function Setup() {
       title="Setup"
       intro={
         <>
-          Connect your coding agent once. Then type <code>audit</code> in any app project.
+          Connect your coding agent once. Then type <code>audit</code> in any app project. Prefer step by step?{" "}
+          <a href="/dashboard/new-audit">Run a new audit</a> with the guide.
         </>
       }
     >

@@ -11,6 +11,8 @@ import { buildReport, chatSummary } from "./report";
 import { kv, TTL, storageReady, STORAGE_NOT_READY } from "./store";
 import { BASE_URL, BRAND, bookHref, newId } from "./config";
 import { addAccountReport, type Access } from "./accounts";
+import { recordAuditStart } from "./activity";
+import { sessionKey, resultsKey, depsKey, reportLockKey, reportKey } from "./audit-keys";
 
 export const SERVER_INSTRUCTIONS = `${BRAND} runs a read-only security audit of an app's source code: mobile apps (React Native/Expo, Flutter, native Android, native iOS) and web apps (Next.js, React). The audit runs entirely inside your coding agent on the user's machine: this server supplies the rules and writes the report.
 When the user says "audit", asks for a security audit or check, or asks whether their app is safe to launch, call the \`audit\` tool and follow its instructions until \`submit_findings\` returns the report link.
@@ -79,11 +81,7 @@ const submitInput = z.object({
     ),
 });
 
-const sessionKey = (id: string) => `audit:${id}`;
-const resultsKey = (id: string) => `audit:${id}:results`;
-const depsKey = (id: string) => `audit:${id}:deps`;
-const reportLockKey = (id: string) => `audit:${id}:report`;
-export const reportKey = (id: string) => `report:${id}`;
+export { reportKey };
 export const reportUrl = (id: string) => `${BASE_URL}/r/${id}`;
 
 async function loadResults(auditId: string): Promise<Record<string, CheckResult>> {
@@ -188,6 +186,14 @@ export function registerMobileFirstSecure(server: McpServer, access: Access = { 
         accountId: access.status === "ok" ? access.account.id : undefined,
       };
       await kv.setJSON(sessionKey(session.id), session, TTL.audit);
+      if (session.accountId) {
+        await recordAuditStart(session.accountId, {
+          auditId: session.id,
+          appName: session.appName,
+          total: session.ruleIds.length,
+          startedAt: session.createdAt,
+        });
+      }
 
       const header = [
         `${BRAND} audit started.`,

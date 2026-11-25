@@ -151,7 +151,12 @@ ok("shared URL and unknown URLs point users to sign up");
 
 const MCP = `${BASE}/mcp/${token}`;
 const client = new Client({ name: "e2e-agent", version: "1.0.0" });
+const activity = async (c = cookie) => (await fetch(`${BASE}/api/activity`, { headers: c ? { cookie: c } : {} }));
+assert.equal((await activity("")).status, 401, "live activity needs a session");
 await client.connect(new StreamableHTTPClientTransport(new URL(MCP)));
+const conn = (await (await activity()).json()).connection;
+assert.equal(conn?.client, "e2e-agent", "the guide sees the agent connect with the personal URL");
+ok("guide: agent connection detected from the MCP initialize");
 console.log("Connected to", MCP.replace(token, "mfs_…"));
 
 const tools = (await client.listTools()).tools.map((t) => t.name).sort();
@@ -235,6 +240,19 @@ console.log("\n--- What the user sees in chat ---\n" + final.split("\n---\n")[0]
 const url = final.match(/Full report with fix guidance: (\S+)/)[1];
 const reportId = url.split("/r/")[1];
 assert.ok(final.includes(`/go/book?from=chat&r=${reportId}`), "chat summary offers a call to get it fixed");
+const live = (await (await activity()).json()).audit;
+assert.equal(live.appName, "PayFlow");
+assert.equal(live.total, 45);
+assert.equal(live.answered, 45);
+assert.equal(live.reportId, reportId, "the guide shows the finished report");
+const guide = await page("/dashboard/new-audit");
+assert.match(guide, /Run a new audit/);
+for (const tool of ["Claude Code", "Codex", "ChatGPT", "Claude", "Cursor", "VS Code"]) assert.ok(guide.includes(tool), `guide lists ${tool}`);
+assert.ok(guide.includes(`/mcp/${token}`), "guide steps carry the personal MCP URL");
+assert.ok(guide.includes("/go/book?from=new-audit"), "stuck on a step books a call");
+assert.ok((await page("/dashboard/audits")).includes('href="/dashboard/new-audit"'), "Audits page has Run a new audit");
+assert.ok((await page("/dashboard")).includes('href="/dashboard/new-audit"'), "Overview has Run a new audit");
+ok("guide: audit progress and report ready; Run a new audit on Overview and Audits");
 
 // Idempotent: a repeat submit returns the same report
 const again = textOf(await client.callTool({ name: "submit_findings", arguments: { audit_id: auditId, results: [] } }));
