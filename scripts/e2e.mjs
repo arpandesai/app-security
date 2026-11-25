@@ -98,9 +98,17 @@ const dash0 = await (await dashFetch()).text();
 const token = dash0.match(/\/mcp\/(mfs_[A-Za-z0-9_-]{32})/)[1];
 assert.equal((await dashFetch(null)).status, 307, "dashboard needs a session");
 assert.equal((await post("/api/auth/start", { mode: "login", email: "nobody@example.com" })).status, 404);
-assert.equal((await post("/api/auth/start", { mode: "signup", name: "", email: "x@example.com" })).status, 400);
+assert.equal((await post("/api/auth/start", { mode: "signup", email: "not-an-email" })).status, 400);
+// The landing page sends email only: that must work end to end too.
+const solo = `solo+${Date.now()}@example.com`;
+assert.equal((await post("/api/auth/start", { mode: "signup", email: solo })).status, 200);
+const soloRes = await post("/api/auth/verify", { email: solo, code: await codeFor(solo) });
+assert.equal(soloRes.status, 200);
+const soloDash = await (await fetch(`${BASE}/dashboard`, { headers: { cookie: soloRes.headers.get("set-cookie").split(";")[0] } })).text();
+assert.match(soloDash, /You(&#x27;|')re in/);
+assert.match(soloDash, /\/mcp\/mfs_/);
 assert.equal((await post("/api/auth/start", { mode: "signup", name: "Bot", email: "bot@example.com", website: "spam" })).status, 400);
-ok("sign-up by emailed code; wrong, reused and throttled codes rejected; dashboard needs a session");
+ok("sign-up by emailed code (with or without name); wrong, reused and throttled codes rejected; dashboard needs a session");
 
 // The shared URL still connects, but asks for a personal URL instead of starting an audit.
 const anon = new Client({ name: "e2e-anon", version: "1.0.0" });

@@ -46,7 +46,7 @@ export default async function Admin() {
                 <tr key={a.id}>
                   <td>
                     <a href={`/admin/${a.id}`}>
-                      <b>{a.name}</b>
+                      <b>{a.name || a.email.split("@")[0]}</b>
                     </a>
                   </td>
                   <td>{a.company || <span className="muted">–</span>}</td>
