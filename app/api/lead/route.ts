@@ -3,6 +3,7 @@ import { kv } from "@/lib/store";
 import { reportKey, reportUrl } from "@/lib/mcp";
 import { BRAND } from "@/lib/config";
 import { sendEmail } from "@/lib/email";
+import { notifyTeam } from "@/lib/notify";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -39,17 +40,7 @@ export async function POST(req: Request) {
 
   // Internal notification: any webhook (Slack incoming webhook, Zapier, Make) and/or email.
   const summary = `${intent === "fix" ? "FIX REQUEST" : "Report emailed"}: ${email} · ${report.appName} · ${report.verdict} (${report.score}/100) · ${report.counts.critical}C/${report.counts.high}H/${report.counts.medium}M · ${url}`;
-  const hook = process.env.LEAD_WEBHOOK_URL;
-  if (hook) {
-    await fetch(hook, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ text: summary, ...lead }),
-    }).catch(() => {});
-  }
-  if (process.env.LEAD_NOTIFY_EMAIL) {
-    await sendEmail(process.env.LEAD_NOTIFY_EMAIL, `[${BRAND}] ${summary.split(" · ")[0]} — ${report.appName}`, `<p>${summary}</p>`).catch(() => false);
-  }
+  await notifyTeam(summary, `${summary.split(" · ")[0]} — ${report.appName}`, lead);
 
   let emailed = false;
   if (intent === "report") {

@@ -1,65 +1,139 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { currentAccount } from "@/lib/auth";
-import { BRAND, SLOGAN, SUPPORT_EMAIL } from "@/lib/config";
-import { AccountView } from "../account-view";
-import { listAccountReports } from "@/lib/accounts";
+import { BRAND } from "@/lib/config";
+import { groupByApp, issueCount, listAccountReports, urgentCount, type AccountReport } from "@/lib/accounts";
+import { BookLink, Panel, requireAccount } from "./panel";
+import { AuditRows, fmtDate, isExpired, plural, verdictClass } from "./parts";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: `Dashboard — ${BRAND}`, robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: `Overview — ${BRAND}`, robots: { index: false, follow: false } };
 
-export default async function Dashboard() {
-  const account = await currentAccount();
-  if (!account) redirect("/login");
-  const reportCount = (await listAccountReports(account.id)).length;
+function Counts({ r }: { r: AccountReport }) {
+  return (
+    <div className="counts">
+      <span className="pill s-critical">{r.counts.critical} critical</span>
+      <span className="pill s-high">{r.counts.high} high</span>
+      <span className="pill s-medium">{r.counts.medium} medium</span>
+      <span className="pill s-low">{r.counts.low} low</span>
+    </div>
+  );
+}
+
+function FirstReport() {
+  return (
+    <section className="card pn-start">
+      <h2 className="pn-h2">Get your first report</h2>
+      <ol className="pn-steps">
+        <li>
+          <b>Connect your coding agent</b>
+          <span>Add your personal link to Claude Code, Codex, ChatGPT, Cursor or another agent. It takes about a minute.</span>
+          <a className="btn sm" href="/dashboard/setup">
+            Open setup
+          </a>
+        </li>
+        <li>
+          <b>
+            Type <code>audit</code> in your app's project
+          </b>
+          <span>Your agent checks the code on your machine. Your codebase never leaves it.</span>
+        </li>
+        <li>
+          <b>Read your report here</b>
+          <span>A verdict, a score out of 100 and the exact lines to fix.</span>
+        </li>
+      </ol>
+      <p className="pn-stuck">
+        Stuck on setup?{" "}
+        <BookLink from="onboarding" className="">
+          Book a call
+        </BookLink>{" "}
+        and we'll connect it with you.
+      </p>
+    </section>
+  );
+}
+
+export default async function Overview() {
+  const account = await requireAccount();
+  const reports = await listAccountReports(account.id);
+  const apps = groupByApp(reports);
+  const urgent = apps.reduce((n, a) => n + urgentCount(a.latest), 0);
+  const firstName = account.name ? account.name.split(" ")[0] : "";
+
+  const intro =
+    reports.length === 0 ? (
+      "Your security reports will appear here."
+    ) : (
+      <>
+        {plural(apps.length, "app")}, {plural(reports.length, "audit")}.{" "}
+        {urgent ? `${plural(urgent, "critical or high issue")} in your latest reports.` : "No critical or high issues in your latest reports."}
+      </>
+    );
 
   return (
-    <main className="wrap">
-      <div className="top">
-        <a className="logo" href="/">
-          MobileFirst <span>Secure</span>
-        </a>
-        <form method="post" action="/api/auth/logout" className="signout">
-          <span className="muted">{account.email}</span>
-          <button className="linkbtn" type="submit">
-            Sign out
-          </button>
-        </form>
-      </div>
-
-      {account.disabled ? (
-        <section className="card">
-          <h1 className="dash-h">Account switched off</h1>
-          <p className="muted" style={{ margin: 0 }}>
-            Contact MobileFirst{SUPPORT_EMAIL ? ` at ${SUPPORT_EMAIL}` : ""} to turn it back on.
-          </p>
-        </section>
+    <Panel account={account} page="overview" title={firstName ? `Hi ${firstName}` : "Welcome"} intro={intro}>
+      {reports.length === 0 ? (
+        <FirstReport />
       ) : (
         <>
-          <section className="card">
-            <h1 className="dash-h">{account.name ? `Hi ${account.name.split(" ")[0]}` : "You're in"}</h1>
-            <p className="muted" style={{ margin: 0 }}>
-              {reportCount === 0 ? (
-                <>
-                  Two steps to your first report: add your link to your coding agent below (about a minute), then type <b>audit</b> in your
-                  app's project.
-                </>
-              ) : (
-                <>
-                  Type <b>audit</b> in any app project to run another check. Every report shows up here.
-                </>
-              )}
-            </p>
-          </section>
-          <AccountView account={account} />
+          <h2 className="pn-sec">Your apps</h2>
+          <div className="pn-apps">
+            {apps.map(({ appName, latest, audits }) => {
+              const expired = isExpired(latest.createdAt);
+              return (
+                <article className="card pn-app" key={appName}>
+                  <div className="pn-app-top">
+                    <div className="pn-app-name">
+                      <h3>{appName}</h3>
+                      <p className="muted">
+                        {latest.stack}. Last audited {fmtDate(latest.createdAt)}
+                        {audits > 1 ? `, ${plural(audits, "audit")}` : ""}.
+                      </p>
+                    </div>
+                    <span className={`verdict ${verdictClass(latest.verdict)}`}>{latest.verdict}</span>
+                  </div>
+                  <div className="pn-app-mid">
+                    <div className="pn-score">
+                      {latest.score}
+                      <small>/100</small>
+                    </div>
+                    <Counts r={latest} />
+                  </div>
+                  <div className="pn-app-actions">
+                    {issueCount(latest) ? (
+                      <BookLink from="app" reportId={latest.reportId}>
+                        Get it fixed
+                      </BookLink>
+                    ) : null}
+                    {expired ? (
+                      <span className="muted">Report expired. Type audit to run a new one.</span>
+                    ) : (
+                      <a className={issueCount(latest) ? "btn ghost" : "btn"} href={`/dashboard/reports/${latest.reportId}`}>
+                        Open report
+                      </a>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <p className="pn-tip">
+            Type <code>audit</code> in any app project to run a new check. New reports appear here automatically.
+          </p>
+
+          {reports.length > 1 ? (
+            <>
+              <div className="pn-sec-row">
+                <h2 className="pn-sec">Recent audits</h2>
+                <a href="/dashboard/audits">See all audits</a>
+              </div>
+              <section className="card tbl">
+                <AuditRows reports={reports.slice(0, 5)} />
+              </section>
+            </>
+          ) : null}
         </>
       )}
-
-      <footer className="foot">
-        <p>
-          {BRAND} · A MobileFirst product · {SLOGAN}
-        </p>
-      </footer>
-    </main>
+    </Panel>
   );
 }

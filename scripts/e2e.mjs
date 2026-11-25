@@ -93,9 +93,18 @@ assert.equal(r.status, 200);
 const cookie = r.headers.get("set-cookie").split(";")[0];
 assert.match(r.headers.get("set-cookie"), /HttpOnly/);
 assert.equal((await post("/api/auth/verify", { email, code })).status, 400, "a code works once");
-const dashFetch = (c = cookie) => fetch(`${BASE}/dashboard`, { headers: c ? { cookie: c } : {}, redirect: "manual" });
-const dash0 = await (await dashFetch()).text();
-const token = dash0.match(/\/mcp\/(mfs_[A-Za-z0-9_-]{32})/)[1];
+const dashFetch = (c = cookie, path = "/dashboard") => fetch(`${BASE}${path}`, { headers: c ? { cookie: c } : {}, redirect: "manual" });
+const page = async (path, c = cookie) => (await dashFetch(c, path)).text();
+const dash0 = await page("/dashboard");
+assert.match(dash0, /Get your first report/);
+assert.match(dash0, /go\/book\?from=onboarding/);
+const setup0 = await page("/dashboard/setup");
+const token = setup0.match(/\/mcp\/(mfs_[A-Za-z0-9_-]{32})/)[1];
+assert.match(setup0, /Need help installing\?/);
+assert.match(setup0, /go\/book\?from=setup/);
+for (const path of ["/dashboard/audits", "/dashboard/setup", "/dashboard/account", "/dashboard/reports/AAAAAAAAAAAAAAAAAAAAAA"]) {
+  assert.equal((await dashFetch(null, path)).status, 307, `${path} needs a session`);
+}
 assert.equal((await dashFetch(null)).status, 307, "dashboard needs a session");
 assert.equal((await post("/api/auth/start", { mode: "login", email: "nobody@example.com" })).status, 404);
 assert.equal((await post("/api/auth/start", { mode: "signup", email: "not-an-email" })).status, 400);
@@ -104,17 +113,18 @@ const solo = `solo+${Date.now()}@example.com`;
 assert.equal((await post("/api/auth/start", { mode: "signup", email: solo })).status, 200);
 const soloRes = await post("/api/auth/verify", { email: solo, code: await codeFor(solo) });
 assert.equal(soloRes.status, 200);
-const soloDash = await (await fetch(`${BASE}/dashboard`, { headers: { cookie: soloRes.headers.get("set-cookie").split(";")[0] } })).text();
-assert.match(soloDash, /You(&#x27;|')re in/);
-assert.match(soloDash, /\/mcp\/mfs_/);
+const soloCookie = soloRes.headers.get("set-cookie").split(";")[0];
+assert.match(await page("/dashboard", soloCookie), /Welcome/);
+assert.match(await page("/dashboard/setup", soloCookie), /\/mcp\/mfs_/);
 assert.equal((await post("/api/auth/start", { mode: "signup", name: "Bot", email: "bot@example.com", website: "spam" })).status, 400);
-ok("sign-up by emailed code (with or without name); wrong, reused and throttled codes rejected; dashboard needs a session");
+ok("sign-up by emailed code (with or without name); wrong, reused and throttled codes rejected; panel pages need a session");
 
 // The shared URL still connects, but asks for a personal URL instead of starting an audit.
 const anon = new Client({ name: "e2e-anon", version: "1.0.0" });
 await anon.connect(new StreamableHTTPClientTransport(new URL(`${BASE}/mcp`)));
 const anonOut = (await anon.callTool({ name: "audit", arguments: { project_files: ["package.json"] } })).content[0].text;
 assert.match(anonOut, /personal MCP URL/);
+assert.match(anonOut, /Book a call with MobileFirst: \S+\/go\/book\?from=mcp-setup/);
 await anon.close();
 const bad = new Client({ name: "e2e-bad", version: "1.0.0" });
 await bad.connect(new StreamableHTTPClientTransport(new URL(`${BASE}/mcp/mfs_${"x".repeat(32)}`)));
@@ -207,6 +217,7 @@ console.log("\n--- What the user sees in chat ---\n" + final.split("\n---\n")[0]
 
 const url = final.match(/Full report with fix guidance: (\S+)/)[1];
 const reportId = url.split("/r/")[1];
+assert.ok(final.includes(`/go/book?from=chat&r=${reportId}`), "chat summary offers a call to get it fixed");
 
 // Idempotent: a repeat submit returns the same report
 const again = textOf(await client.callTool({ name: "submit_findings", arguments: { audit_id: auditId, results: [] } }));
@@ -224,6 +235,16 @@ assert.match(html, /Not found on the public registry/);
 assert.match(html, /Mobile Top 10 2024: M1 Improper Credential Usage/);
 assert.match(html, /Launch level/);
 ok("registry check flags the invented package; standards shown");
+assert.ok(html.includes(`/go/book?from=report&amp;r=${reportId}`), "report header: Get it fixed");
+assert.ok(html.includes(`/go/book?from=finding&amp;r=${reportId}`), "each finding: Get this fixed");
+assert.ok(html.includes(`/go/book?from=report-end&amp;r=${reportId}`), "end of report: Book a call");
+const BOOKING = "https://calendar.google.com/calendar/u/0/appointments/schedules/";
+const book = await fetch(`${BASE}/go/book?from=finding&r=${reportId}`, { headers: { cookie }, redirect: "manual" });
+assert.equal(book.status, 302);
+assert.ok(book.headers.get("location").startsWith(BOOKING), "redirects to the booking page");
+const bookOdd = await fetch(`${BASE}/go/book?from=<script>&r=../../etc`, { redirect: "manual" });
+assert.equal(bookOdd.status, 302, "unknown sources and bad report IDs still reach the booking page");
+ok("every fix action books a call: header, each finding, end of report, chat; /go/book logs and redirects");
 
 const lead = await fetch(`${BASE}/api/lead`, {
   method: "POST",
@@ -239,19 +260,36 @@ const badLead = await fetch(`${BASE}/api/lead`, {
 assert.equal(badLead.status, 400);
 ok("lead capture works; bad email rejected");
 
-// Dashboard lists the report; admin can see the customer and switch the URL off and on.
-const dash = await (await dashFetch()).text();
+// The panel: overview card per app, audits list, owner-only report view, account edits.
+const dash = await page("/dashboard");
 assert.match(dash, /Hi Priya/);
-assert.ok(dash.includes(`/r/${reportId}`), "dashboard links the report");
-assert.ok(dash.includes(`/mcp/${token}`), "dashboard shows the personal MCP URL");
-ok("dashboard shows the personal URL and the report");
+assert.match(dash, /PayFlow/);
+assert.ok(dash.includes(`/dashboard/reports/${reportId}`), "overview opens the report in the panel");
+assert.ok(dash.includes(`/go/book?from=app&amp;r=${reportId}`), "app card: Get it fixed");
+assert.ok((await page("/dashboard/audits")).includes(`/dashboard/reports/${reportId}`), "audits page lists the report");
+const inPanel = await page(`/dashboard/reports/${reportId}`);
+assert.match(inPanel, /Not safe to launch/);
+assert.match(inPanel, /Shareable link/);
+assert.ok(!inPanel.includes("TESTONLYabcdefghij"), "secret masked in the panel too");
+assert.match(await page(`/dashboard/reports/${reportId}`, soloCookie), /Report not found/, "another account can't open it in the panel");
+assert.ok((await page("/dashboard/setup")).includes(`/mcp/${token}`), "setup shows the personal MCP URL");
+const save = (body, headers = {}) =>
+  fetch(`${BASE}/api/account`, { method: "POST", headers: { cookie, ...headers }, body: new URLSearchParams(body), redirect: "manual" });
+const saved = await save({ name: "Priya Shah", company: "PayFlow Labs" });
+assert.equal(saved.status, 303);
+assert.match(saved.headers.get("location"), /saved=1/);
+const acct = await page("/dashboard/account");
+assert.ok(acct.includes("Priya Shah") && acct.includes("PayFlow Labs") && acct.includes(email));
+assert.match((await save({ name: "x".repeat(81) })).headers.get("location"), /error=1/);
+assert.equal((await save({ name: "Mallory" }, { origin: "https://evil.example" })).status, 403, "cross-site form posts are refused");
+ok("panel: app card with Get it fixed, audits list, owner-only report view, setup, account edits");
 
 if (ADMIN_PASSWORD) {
   const auth = { authorization: "Basic " + Buffer.from(`admin:${ADMIN_PASSWORD}`).toString("base64") };
   assert.equal((await fetch(`${BASE}/admin`)).status, 401);
   assert.equal((await fetch(`${BASE}/admin`, { headers: { authorization: "Basic " + Buffer.from("admin:wrong").toString("base64") } })).status, 401);
   const admin = await (await fetch(`${BASE}/admin`, { headers: auth })).text();
-  assert.ok(admin.includes(email) && admin.includes("PayFlow Inc"));
+  assert.ok(admin.includes(email) && admin.includes("PayFlow Labs"));
   const toggle = (id, action) =>
     fetch(`${BASE}/api/admin/accounts`, { method: "POST", headers: { ...auth, accept: "application/json" }, body: new URLSearchParams({ id, action }) });
   // Find this customer's account ID from the row that holds their email.
@@ -261,7 +299,9 @@ if (ADMIN_PASSWORD) {
   assert.equal((await toggle(id, "disable")).status, 200);
   const off = textOf(await client.callTool({ name: "audit", arguments: { project_files: projectFiles } }));
   assert.match(off, /switched off/);
-  assert.match(await (await dashFetch()).text(), /Account switched off/);
+  const offDash = await page("/dashboard");
+  assert.match(offDash, /Your account is switched off/);
+  assert.match(offDash, /go\/book\?from=switched-off/);
   assert.equal((await toggle(id, "enable")).status, 200);
   assert.match(textOf(await client.callTool({ name: "audit", arguments: { project_files: projectFiles, dependency_names: Object.keys(pkg.dependencies) } })), /Audit ID/);
   ok("admin is password-protected, lists customers, switches a URL off and on");

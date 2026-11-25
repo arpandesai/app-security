@@ -2,7 +2,7 @@ import type { AuditSession, CheckResult, Evidence, Finding, Report, Severity, Ve
 import { getRule, categoryName } from "./rules";
 import type { DepScan } from "./osv";
 import type { RegistryScan } from "./registry";
-import { BRAND } from "./config";
+import { BRAND, bookHref } from "./config";
 
 export const SEV_ORDER: Severity[] = ["critical", "high", "medium", "low"];
 const WEIGHT: Record<Severity, number> = { critical: 25, high: 12, medium: 5, low: 2 };
@@ -191,6 +191,7 @@ export function chatSummary(r: Report, url: string): string {
     lines.push(`No issues found across ${r.checksRun} checks.`);
   }
   lines.push("", `Full report with fix guidance: ${url}`);
+  if (r.findings.length) lines.push(`Want MobileFirst engineers to fix these? Book a call: ${bookHref("chat", r.id, true)}`);
   return lines.join("\n");
 }
 

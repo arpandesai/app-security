@@ -9,7 +9,7 @@ import { scanDependencies } from "./osv";
 import { checkRegistries } from "./registry";
 import { buildReport, chatSummary } from "./report";
 import { kv, TTL, storageReady, STORAGE_NOT_READY } from "./store";
-import { BASE_URL, BRAND, SUPPORT_EMAIL, newId } from "./config";
+import { BASE_URL, BRAND, bookHref, newId } from "./config";
 import { addAccountReport, type Access } from "./accounts";
 
 export const SERVER_INSTRUCTIONS = `${BRAND} runs a read-only security audit of a mobile app's source code (React Native/Expo, Flutter, native Android, native iOS). The audit runs entirely inside your coding agent on the user's machine: this server supplies the rules and writes the report.
@@ -33,7 +33,12 @@ const auditInput = z.object({
     .array(z.string())
     .optional()
     .describe("Package names listed under dependencies in package.json and/or pubspec.yaml (names only)."),
-  app_name: z.string().optional().describe("The app's display name if known."),
+  app_name: z
+    .string()
+    .optional()
+    .describe(
+      "The app's name, read from the code: expo.name in app.json or app.config, name in pubspec.yaml, android:label (or app_name in strings.xml) in the Android app, or CFBundleDisplayName / CFBundleName in Info.plist. Always send it: reports are grouped by app name in the user's dashboard."
+    ),
   app_description: z
     .string()
     .optional()
@@ -105,7 +110,7 @@ function remainingByCategory(session: AuditSession, answered: Set<string>) {
 
 /** What the agent shows when the caller can't start an audit with the URL they connected with. */
 export function accessMessage(access: Access): string | null {
-  const contact = SUPPORT_EMAIL ? ` at ${SUPPORT_EMAIL}` : "";
+  const help = `Need help setting it up? Book a call with MobileFirst: ${bookHref("mcp-setup", undefined, true)}`;
   switch (access.status) {
     case "ok":
       return null;
@@ -113,15 +118,20 @@ export function accessMessage(access: Access): string | null {
       return (
         `${BRAND} now gives every user a free personal MCP URL, and your reports are saved to your own dashboard. ` +
         `Get yours at ${BASE_URL} (name and email, under a minute), replace this server's URL in your settings with it, then run the audit again.\n\n` +
+        `${help}\n\n` +
         "Show this message to the user exactly as written."
       );
     case "invalid":
       return (
         `This ${BRAND} URL isn't recognised. Copy your personal MCP URL from your dashboard, or get a new one at ${BASE_URL}.\n\n` +
+        `${help}\n\n` +
         "Show this message to the user exactly as written."
       );
     case "disabled":
-      return `This ${BRAND} URL has been switched off. Contact MobileFirst${contact} to turn it back on.\n\nShow this message to the user exactly as written.`;
+      return (
+        `This ${BRAND} URL has been switched off. Book a call with MobileFirst to turn it back on: ${bookHref("switched-off", undefined, true)}\n\n` +
+        "Show this message to the user exactly as written."
+      );
   }
 }
 

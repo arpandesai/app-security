@@ -67,3 +67,12 @@ export function PrintExpander() {
   }, []);
   return null;
 }
+
+/** Opens the browser's print dialog, where the report can be saved as a PDF. */
+export function PrintButton({ className = "btn ghost" }: { className?: string }) {
+  return (
+    <button className={className} type="button" onClick={() => window.print()}>
+      Save as PDF
+    </button>
+  );
+}
