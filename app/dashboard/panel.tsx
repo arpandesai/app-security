@@ -69,7 +69,27 @@ export function Panel({
           <a className="pn-logo" href="/dashboard">
             MobileFirst <span>Secure</span>
           </a>
-          <SignOut className="pn-mobile-only" />
+          {/* Small screens: navigation lives in a hamburger menu. */}
+          <details className="pn-burger">
+            <summary aria-label="Menu">
+              <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+              </svg>
+            </summary>
+            <div className="pn-burger-menu">
+              <nav aria-label="Panel">
+                {NAV.map((n) => (
+                  <a key={n.id} href={n.href} aria-current={n.id === page ? "page" : undefined}>
+                    {n.label}
+                  </a>
+                ))}
+              </nav>
+              <div className="pn-burger-foot">
+                <span>{account.email}</span>
+                <SignOut />
+              </div>
+            </div>
+          </details>
         </div>
         <nav className="pn-nav" aria-label="Panel">
           {NAV.map((n) => (

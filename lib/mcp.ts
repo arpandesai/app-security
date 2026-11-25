@@ -287,6 +287,7 @@ export function registerMobileFirstSecure(server: McpServer, access: Access = { 
         const deps = await loadDeps(session.id);
         const [dep, reg] = await Promise.all([scanDependencies(deps), checkRegistries(deps)]);
         report = buildReport(reportId, session, results, dep, reg);
+        if (session.accountId) report.ownerId = session.accountId;
         await kv.setJSON(reportKey(reportId), report, TTL.report);
         if (session.accountId) await addAccountReport(session.accountId, report);
       }

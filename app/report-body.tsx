@@ -2,7 +2,7 @@ import type { Finding, Report } from "@/lib/types";
 import { categoryName, LEVEL_NAMES } from "@/lib/rules";
 import { BRAND } from "@/lib/config";
 import { BookLink } from "./book-link";
-import { LeadForm, PrintButton, PrintExpander } from "./r/[id]/lead-form";
+import { PrintButton, PrintExpander } from "./report-client";
 
 export const verdictClass = (v: Report["verdict"]) =>
   v === "Not safe to launch" ? "v-bad" : v === "Fix before launch" ? "v-warn" : "v-ok";
@@ -29,7 +29,7 @@ function Refs({ f }: { f: Finding }) {
   );
 }
 
-function FindingCard({ f, reportId, open }: { f: Finding; reportId: string; open?: boolean }) {
+function FindingCard({ f, reportId, open, book }: { f: Finding; reportId: string; open?: boolean; book: boolean }) {
   const review = f.status === "unable_to_check";
   const sev = review ? "review" : f.severity;
   return (
@@ -64,12 +64,14 @@ function FindingCard({ f, reportId, open }: { f: Finding; reportId: string; open
         ) : null}
         <h4>How to fix</h4>
         <p>{f.fix}</p>
-        <div className="f-fix noprint">
-          <BookLink from="finding" reportId={reportId} className="btn sm">
-            {review ? "Check this with an engineer" : "Get this fixed"}
-          </BookLink>
-          <span className="muted">Books a call with MobileFirst.</span>
-        </div>
+        {book ? (
+          <div className="f-fix noprint">
+            <BookLink from="finding" reportId={reportId} className="btn sm">
+              {review ? "Check this with an engineer" : "Get this fixed"}
+            </BookLink>
+            <span className="muted">Books a call with MobileFirst.</span>
+          </div>
+        ) : null}
         <h4>Reference</h4>
         <p className="refs">
           <Refs f={f} />
@@ -80,15 +82,25 @@ function FindingCard({ f, reportId, open }: { f: Finding; reportId: string; open
 }
 
 /**
- * The full report. "public" is the shareable /r/<id> page (with the email form);
- * "panel" sits inside the customer panel (with share and PDF buttons).
+ * The full report, inside the panel. "owner" ran the audit and can invite reviewers, "reviewer" was
+ * invited by the owner, "admin" is MobileFirst looking from /admin (no booking buttons).
  */
-export function ReportBody({ r, variant }: { r: Report; variant: "public" | "panel" }) {
+export function ReportBody({
+  r,
+  variant,
+  sharedBy,
+}: {
+  r: Report;
+  variant: "owner" | "reviewer" | "admin";
+  sharedBy?: string;
+}) {
   const issues = r.findings.length;
+  const book = variant !== "admin";
 
   return (
     <>
       <PrintExpander />
+      {sharedBy ? <p className="shared-by noprint">{`Shared with you by ${sharedBy}`}</p> : null}
       <section className="card hero">
         <div className="muted">Security audit, {fmtDate(r.createdAt)}</div>
         <h1>{r.appName}</h1>
@@ -113,25 +125,19 @@ export function ReportBody({ r, variant }: { r: Report; variant: "public" | "pan
           </div>
         </div>
         <div className="cta-row noprint">
-          {issues ? (
+          {issues && book ? (
             <BookLink from="report" reportId={r.id}>
               Get it fixed
             </BookLink>
           ) : null}
-          {variant === "public" ? (
-            <a className={issues ? "btn ghost" : "btn"} href="#email">
-              Email me the report
+          {variant === "owner" ? (
+            <a className="btn ghost" href="#share">
+              Invite reviewers
             </a>
-          ) : (
-            <>
-              <a className="btn ghost" href={`/r/${r.id}`} target="_blank" rel="noopener">
-                Shareable link
-              </a>
-              <PrintButton />
-            </>
-          )}
+          ) : null}
+          <PrintButton />
         </div>
-        {issues ? <p className="cta-note noprint">Get it fixed opens our calendar to book a call with a MobileFirst engineer.</p> : null}
+        {issues && book ? <p className="cta-note noprint">Get it fixed opens our calendar to book a call with a MobileFirst engineer.</p> : null}
       </section>
 
       {issues ? (
@@ -156,7 +162,7 @@ export function ReportBody({ r, variant }: { r: Report; variant: "public" | "pan
 
           <h2>All findings ({issues})</h2>
           {r.findings.map((f, i) => (
-            <FindingCard f={f} reportId={r.id} key={f.ruleId} open={i === 0} />
+            <FindingCard f={f} reportId={r.id} key={f.ruleId} open={i === 0} book={book} />
           ))}
         </>
       ) : (
@@ -172,7 +178,7 @@ export function ReportBody({ r, variant }: { r: Report; variant: "public" | "pan
             These couldn't be confirmed from the code in your repository, usually because the setting lives in a dashboard.
           </p>
           {r.needsReview.map((f) => (
-            <FindingCard f={f} reportId={r.id} key={f.ruleId} />
+            <FindingCard f={f} reportId={r.id} key={f.ruleId} book={book} />
           ))}
         </>
       ) : null}
@@ -196,6 +202,7 @@ export function ReportBody({ r, variant }: { r: Report; variant: "public" | "pan
         </div>
       </details>
 
+      {book ? (
       <section className="card noprint pn-callout" id="fix" style={{ marginTop: 32 }}>
         <div>
           <h2 style={{ marginTop: 0 }}>{issues ? "Get these fixed by MobileFirst" : "Talk to a MobileFirst engineer"}</h2>
@@ -209,15 +216,6 @@ export function ReportBody({ r, variant }: { r: Report; variant: "public" | "pan
           Book a call
         </BookLink>
       </section>
-
-      {variant === "public" ? (
-        <section className="card noprint" id="email">
-          <h2 style={{ marginTop: 0 }}>Email me the report</h2>
-          <p className="muted" style={{ margin: 0 }}>
-            Get a copy to share with your developer or team.
-          </p>
-          <LeadForm reportId={r.id} intent="report" button="Email me the report" />
-        </section>
       ) : null}
 
       <div className="foot">

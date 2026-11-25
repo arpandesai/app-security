@@ -1,4 +1,5 @@
 import type { AccountReport } from "@/lib/accounts";
+import type { SharedReport } from "@/lib/sharing";
 import { TTL } from "@/lib/store";
 
 export const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
@@ -16,8 +17,11 @@ function Issues({ r }: { r: AccountReport }) {
   return <>{parts.length ? parts.join(", ") : "None"}</>;
 }
 
+const sub = (r: AccountReport | SharedReport) =>
+  "sharedBy" in r ? `Shared by ${r.sharedByCompany ? `${r.sharedBy}, ${r.sharedByCompany}` : r.sharedBy}` : r.agent ? `${r.stack}, ${r.agent}` : r.stack;
+
 /** A table of audits, newest first, each linking to its report inside the panel. */
-export function AuditRows({ reports }: { reports: AccountReport[] }) {
+export function AuditRows({ reports }: { reports: (AccountReport | SharedReport)[] }) {
   return (
     <table>
       <thead>
@@ -35,7 +39,7 @@ export function AuditRows({ reports }: { reports: AccountReport[] }) {
           <tr key={r.reportId}>
             <td>
               <b>{r.appName}</b>
-              <div className="muted">{r.agent ? `${r.stack}, ${r.agent}` : r.stack}</div>
+              <div className="muted">{sub(r)}</div>
             </td>
             <td className="nw">{fmtDate(r.createdAt)}</td>
             <td className="nw">

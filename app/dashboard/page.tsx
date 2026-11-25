@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { BRAND } from "@/lib/config";
 import { groupByApp, issueCount, listAccountReports, urgentCount, type AccountReport } from "@/lib/accounts";
+import { listSharedWithMe } from "@/lib/sharing";
 import { BookLink, Panel, requireAccount } from "./panel";
 import { AuditRows, fmtDate, isExpired, plural, verdictClass } from "./parts";
 
@@ -54,14 +55,29 @@ function FirstReport() {
 
 export default async function Overview() {
   const account = await requireAccount();
-  const reports = await listAccountReports(account.id);
+  const [reports, shared] = await Promise.all([listAccountReports(account.id), listSharedWithMe(account.email)]);
   const apps = groupByApp(reports);
   const urgent = apps.reduce((n, a) => n + urgentCount(a.latest), 0);
   const firstName = account.name ? account.name.split(" ")[0] : "";
 
+  const sharedSection = shared.length ? (
+    <>
+      <div className="pn-sec-row" style={{ marginTop: reports.length ? 36 : 0 }}>
+        <h2 className="pn-sec">Shared with you</h2>
+      </div>
+      <section className="card tbl" style={{ marginBottom: reports.length ? 0 : 28 }}>
+        <AuditRows reports={shared} />
+      </section>
+    </>
+  ) : null;
+
   const intro =
     reports.length === 0 ? (
-      "Your security reports will appear here."
+      shared.length ? (
+        `${plural(shared.length, "report")} shared with you.`
+      ) : (
+        "Your security reports will appear here."
+      )
     ) : (
       <>
         {plural(apps.length, "app")}, {plural(reports.length, "audit")}.{" "}
@@ -72,7 +88,10 @@ export default async function Overview() {
   return (
     <Panel account={account} page="overview" title={firstName ? `Hi ${firstName}` : "Welcome"} intro={intro}>
       {reports.length === 0 ? (
-        <FirstReport />
+        <>
+          {sharedSection}
+          <FirstReport />
+        </>
       ) : (
         <>
           <h2 className="pn-sec">Your apps</h2>
@@ -132,6 +151,7 @@ export default async function Overview() {
               </section>
             </>
           ) : null}
+          {sharedSection}
         </>
       )}
     </Panel>

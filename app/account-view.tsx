@@ -45,7 +45,7 @@ export async function AccountView({ account }: { account: Account }) {
                   {expired(r.createdAt) ? (
                     <span className="muted">Expired</span>
                   ) : (
-                    <a className="btn ghost sm" href={`/r/${r.reportId}`}>
+                    <a className="btn ghost sm" href={`/admin/reports/${r.reportId}`}>
                       Open report
                     </a>
                   )}

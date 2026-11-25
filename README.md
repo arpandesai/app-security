@@ -23,8 +23,8 @@ User types "audit" in Claude Code / Claude app / Codex / ChatGPT desktop / Curso
    and the npm / pub.dev registries,
    scores, picks a verdict, saves the report
 5. Agent shows the summary in chat: verdict, score, top 3 issues, report link
-6. Report page: full findings with fix guidance, plus "Get these fixed by MobileFirst"
-   and "Email me the report" email capture (your leads)
+6. Report (private): full findings with fix guidance and "Get it fixed" (books a call).
+   Only the owner, reviewers they invite, and MobileFirst admins can open it
 ```
 
 The codebase never leaves the user's machine. Only rule results, file paths, short evidence snippets (with secrets masked) and the dependency list are sent.
@@ -45,15 +45,13 @@ The codebase never leaves the user's machine. Only rule results, file paths, sho
 |---|---|---|
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Yes (prod) | Upstash Redis, added by the Marketplace integration. Prefixed names (`<PREFIX>_KV_REST_API_URL`) and `UPSTASH_REDIS_REST_URL`/`_TOKEN` also work. Without Redis on Vercel, audits are refused with a clear message: parallel requests hit different server instances, so in-memory storage loses audits. |
 | `PUBLIC_BASE_URL` | No | Defaults to `https://app-security.mobilefirst.in`. Used to build report links. |
-| `LEAD_WEBHOOK_URL` | Recommended | Every lead is POSTed here as JSON with a `text` field, so a Slack incoming webhook works as is. Zapier and Make work too. |
-| `RESEND_API_KEY`, `EMAIL_FROM` | Yes (prod) | Sends sign-in codes and the "Email me the report" email through Resend. `EMAIL_FROM` must use your verified Resend domain, e.g. `MobileFirst Secure <secure@mobilefirst.in>`. Without these, nobody can sign up or sign in. |
-| `LEAD_NOTIFY_EMAIL` | No | Also email every lead and booking click to this address (needs Resend). |
+| `LEAD_WEBHOOK_URL` | Recommended | Every booking click is POSTed here as JSON with a `text` field, so a Slack incoming webhook works as is. Zapier and Make work too. |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Yes (prod) | Sends sign-in codes and reviewer invites through Resend. `EMAIL_FROM` must use your verified Resend domain, e.g. `MobileFirst Secure <secure@mobilefirst.in>`. Without these, nobody can sign up or sign in. |
+| `LEAD_NOTIFY_EMAIL` | No | Also email every booking click to this address (needs Resend). |
 | `BOOKING_URL` | No | Where every "Get it fixed" and "Need help" button leads. Defaults to the MobileFirst Google Calendar booking page. |
 | `REPORT_TTL_DAYS` | No | How long report links stay live. Default: 90. |
 | `ADMIN_PASSWORD` | Yes (prod) | Password for `/admin` (HTTP basic auth, any username). Without it, the admin page returns 404. |
 | `SUPPORT_EMAIL` | No | Not shown to customers any more: fix, help and switched-off messages all point to `BOOKING_URL`. |
-
-All leads are also stored in the Redis list `leads`, which you can read in the Upstash console.
 
 ### Booking calls
 
@@ -69,14 +67,25 @@ The smallest setup that gives every customer a dashboard and gives MobileFirst c
 2. **Sign in** at `/login`: email, then a code. Codes expire after 10 minutes, allow 5 attempts, work once, and can be re-sent every 30 seconds. A session cookie (HttpOnly, 30 days) keeps the customer signed in.
 3. **Customer panel** at `/dashboard`, with four pages:
    - **Overview:** one card per app (grouped by app name) with the latest score, verdict, issue counts, **Get it fixed** and **Open report**; recent audits below. Before the first audit, a three-step start guide with a "Book a call" link for setup help.
-   - **Audits:** every audit, newest first. Reports open inside the panel at `/dashboard/reports/<id>`, only for the account that ran them, with a shareable link and Save as PDF.
+   - **Audits:** every audit, newest first, plus reports shared with you. Reports open inside the panel at `/dashboard/reports/<id>` with Save as PDF.
    - **Setup:** the personal MCP URL with steps for Claude Code, Claude, Codex, ChatGPT, Cursor and VS Code, plus **Need help installing?**
    - **Account:** edit name and company.
 4. **Personal MCP URL**, `/mcp/<token>`. The token in the URL identifies the customer, so it works in every client, including ChatGPT and the Claude app, which can't send custom auth headers. Audits started through it are saved to the account.
 5. The shared URL `/mcp` still connects, but `audit` replies with a link to sign up. Unknown or switched-off URLs get a clear message too.
 6. **Admin** at `/admin` (password: `ADMIN_PASSWORD`): every customer with company, email, signup date, audit count and last audit, a view of each customer's audits, and **Switch off / Turn on** for their URL. Switching off takes effect on the next request.
 
-Tokens are 192-bit random values looked up through a SHA-256 index; codes and sessions are stored hashed too. Report links stay unguessable and shareable, so founders can forward them to their developer.
+Tokens are 192-bit random values looked up through a SHA-256 index; codes and sessions are stored hashed too.
+
+### Private reports, invited reviewers
+
+Reports are private. The report link (`/r/<id>`, in the agent's chat and in invite emails) shows nothing about the report until someone signs in:
+
+- **Signed out:** a sign-in form (email, then a 6-digit code). After sign-in it returns to the report.
+- **The owner** (the account that ran the audit) and **invited reviewers** go straight to the report in their panel.
+- **Anyone else** signed in sees "You don't have access to this report", with the same message whether or not the report exists.
+- **MobileFirst admins** open reports from `/admin` at `/admin/reports/<id>`, behind the admin password.
+
+The owner invites reviewers by email from the **Reviewers** card at the bottom of the report (up to 25 per report). The invitee gets an email from Resend with the link, signs in with that address (an account is created on first sign-in, so invited developers can run their own audits later), and finds the report under **Shared with you** on their Overview and Audits pages. The owner can **Remove** a reviewer at any time; access ends on their next page load. Access lists live in Redis (`racl:<report>`, expiring with the report) and each reviewer's list in `shared:<email>`.
 
 ## Connect a coding agent
 
@@ -142,7 +151,7 @@ MFS_URL=http://localhost:3000 ADMIN_PASSWORD=test npm run test:e2e
 
 To test the Redis code path too, run `node scripts/mock-upstash.mjs &` (a local stand-in for the Upstash REST API) and start the server with `KV_REST_API_URL=http://localhost:8788 KV_REST_API_TOKEN=test`. Run this whenever `lib/store.ts` changes.
 
-The test covers: sign-up by emailed code (wrong, reused and throttled codes, invalid and bot sign-ups), sessions and sign-out, the shared and unknown URLs pointing users to sign up, tool and prompt discovery, stack detection, rejection of invalid submissions, category-by-category submission, server-side secret masking, dependency CVEs, the registry check for invented packages, the report page, lead capture, booking links and click logging, the customer panel (overview, audits, owner-only report view, setup, account edits), the admin page (password, customer list, switching a URL off and on), parallel submissions, and the fallback when OSV is unreachable.
+The test covers: sign-up by emailed code (wrong, reused and throttled codes, invalid and bot sign-ups), sessions and sign-out, the shared and unknown URLs pointing users to sign up, tool and prompt discovery, stack detection, rejection of invalid submissions, category-by-category submission, server-side secret masking, dependency CVEs, the registry check for invented packages, private report links (signed-out gate, owner redirect, no access for others), reviewer invites (email sent, invitee sign-up with return to the report, Shared with you, owner-only invite and remove, removal ends access), booking links and click logging, the customer panel (overview, audits, setup, account edits), admin report view, the admin page (password, customer list, switching a URL off and on), parallel submissions, and the fallback when OSV is unreachable.
 
 ## Project layout
 
@@ -157,8 +166,9 @@ app/login/              Sign in by emailed code
 app/api/auth/           Send code, verify code, sign out
 app/admin/              Admin: customers, their audits, switch URLs off and on
 middleware.ts           Basic auth for /admin
-app/r/[id]/             Shareable report page with the email form
-app/api/lead/route.ts   Lead capture, webhook, Resend email
+app/r/[id]/             Report link: sign-in gate, then the report in the panel
+app/api/reports/[id]/   Invite and remove reviewers (owner only)
+app/admin/reports/      Admin view of any report
 app/page.tsx            Minimal landing page with the sign-up form
 lib/rules/              Rule catalog; meta.ts holds levels and standards
 lib/detect.ts           Stack detection
@@ -171,13 +181,13 @@ lib/mask.ts             Secret masking for evidence snippets
 lib/accounts.ts         Accounts, tokens, per-account audit list
 lib/auth.ts             Email codes and sessions
 lib/email.ts            Resend
-lib/notify.ts           Team notifications (webhook, email) for leads and booking clicks
+lib/notify.ts           Team notifications (webhook, email) for booking clicks
+lib/sharing.ts          Report access: owner, invited reviewers, invite emails
 lib/store.ts            Upstash Redis (or in-memory for dev)
 ```
 
 ## Deferred for later
 
-- **Report link privacy:** links are unguessable (128-bit random IDs) and expire after `REPORT_TTL_DAYS`. Owner-only access is not built yet.
 - **Regenerating a leaked URL** from the dashboard.
 - **Abuse limits:** any URL can be switched off from `/admin`, and codes are throttled to one per email every 30 seconds, but there are no per-account audit limits or per-IP limits yet. Vercel's Firewall rate-limit rules are the quickest option for `/api/auth/start` when needed.
 - **Re-audit comparison**, for the ongoing protection tier.

@@ -224,7 +224,16 @@ const again = textOf(await client.callTool({ name: "submit_findings", arguments:
 assert.ok(again.includes(url));
 ok("repeat submit returns same report link");
 
-const html = await (await fetch(`${BASE}/r/${reportId}`)).text();
+// The report link is private: signed out, it shows a sign-in form and nothing about the report.
+const gate = await (await fetch(`${BASE}/r/${reportId}`)).text();
+assert.match(gate, /This security report is private/);
+assert.ok(!gate.includes("PayFlow") && !gate.includes("Not safe to launch"), "signed-out visitors learn nothing about the report");
+const ownerLink = await fetch(`${BASE}/r/${reportId}`, { headers: { cookie }, redirect: "manual" });
+assert.equal(ownerLink.status, 307);
+assert.ok(ownerLink.headers.get("location").endsWith(`/dashboard/reports/${reportId}`), "the owner goes straight to the report in the panel");
+ok("report link is private: signed-out gate shows nothing, owner lands in the panel");
+
+const html = await page(`/dashboard/reports/${reportId}`);
 assert.match(html, /Not safe to launch/);
 assert.ok(!html.includes("TESTONLYabcdefghij"), "live secret must be masked");
 assert.match(html, /sk-pro••••/);
@@ -246,19 +255,52 @@ const bookOdd = await fetch(`${BASE}/go/book?from=<script>&r=../../etc`, { redir
 assert.equal(bookOdd.status, 302, "unknown sources and bad report IDs still reach the booking page");
 ok("every fix action books a call: header, each finding, end of report, chat; /go/book logs and redirects");
 
-const lead = await fetch(`${BASE}/api/lead`, {
-  method: "POST",
-  headers: { "content-type": "application/json" },
-  body: JSON.stringify({ reportId, email: "founder@example.com", intent: "fix" }),
-});
-assert.equal(lead.status, 200);
-const badLead = await fetch(`${BASE}/api/lead`, {
-  method: "POST",
-  headers: { "content-type": "application/json" },
-  body: JSON.stringify({ reportId, email: "nope", intent: "fix" }),
-});
-assert.equal(badLead.status, 400);
-ok("lead capture works; bad email rejected");
+// Invite a reviewer: they get an email, sign up with that address, return to the report, and can read it.
+const reviewers = (body, c = cookie, headers = {}) =>
+  fetch(`${BASE}/api/reports/${reportId}/reviewers`, { method: "POST", headers: { cookie: c, ...headers }, body: new URLSearchParams(body), redirect: "manual" });
+const dev = `dev+${Date.now()}@example.com`;
+let inv = await reviewers({ action: "invite", email: dev.toUpperCase() });
+assert.equal(inv.status, 303);
+assert.match(inv.headers.get("location"), /invited=.*emailed=1/);
+const invite = await (await fetch(`${MAIL}/_mail?to=${encodeURIComponent(dev)}`)).json();
+assert.match(invite.subject, /shared a security report with you/);
+assert.match(await page(`/dashboard/reports/${reportId}`), new RegExp(dev.replace(/[.+]/g, "\\$&")), "owner sees the reviewer");
+assert.match((await reviewers({ action: "invite", email: "nope" })).headers.get("location"), /error=/);
+assert.match((await reviewers({ action: "invite", email })).headers.get("location"), /error=/, "can't invite yourself");
+assert.equal((await reviewers({ action: "invite", email: "x@example.com" }, cookie, { origin: "https://evil.example" })).status, 403);
+assert.equal((await reviewers({ action: "invite", email: "x@example.com" }, soloCookie)).status, 404, "only the owner can invite");
+
+// The invitee signs up from the report link and lands back on it.
+assert.equal((await post("/api/auth/start", { mode: "signup", email: dev })).status, 200);
+const devVerify = await post("/api/auth/verify", { email: dev, code: await codeFor(dev), next: `/r/${reportId}` });
+assert.equal((await devVerify.clone().json()).redirect, `/r/${reportId}`, "sign-in returns to the report");
+const devCookie = devVerify.headers.get("set-cookie").split(";")[0];
+const devLink = await fetch(`${BASE}/r/${reportId}`, { headers: { cookie: devCookie }, redirect: "manual" });
+assert.ok(devLink.headers.get("location").endsWith(`/dashboard/reports/${reportId}`));
+const devView = await page(`/dashboard/reports/${reportId}`, devCookie);
+assert.match(devView, /Shared with you by Priya Founder, PayFlow Inc/);
+assert.match(devView, /Not safe to launch/);
+assert.ok(!devView.includes(`/api/reports/${reportId}/reviewers`), "reviewers can't manage access");
+assert.ok((await page("/dashboard", devCookie)).includes(`/dashboard/reports/${reportId}`), "Shared with you on the overview");
+assert.match(await page("/dashboard/audits", devCookie), /Shared with you/);
+assert.equal((await reviewers({ action: "remove", email: email }, devCookie)).status, 404, "a reviewer can't change access");
+
+// Someone signed in but not invited gets no access; a redirect after sign-in can't leave the site.
+const soloLink = await (await fetch(`${BASE}/r/${reportId}`, { headers: { cookie: soloCookie } })).text();
+assert.match(soloLink, /You don(&#x27;|')t have access to this report/);
+assert.ok(!soloLink.includes("PayFlow"));
+for (const next of ["//evil.example", "https://evil.example", "/\\evil.example"]) {
+  const who = `n${Math.random().toString(36).slice(2)}@example.com`;
+  await post("/api/auth/start", { mode: "signup", email: who });
+  assert.equal((await (await post("/api/auth/verify", { email: who, code: await codeFor(who), next })).json()).redirect, "/dashboard", `blocks ${next}`);
+}
+
+// Removing the reviewer ends their access immediately.
+inv = await reviewers({ action: "remove", email: dev });
+assert.match(inv.headers.get("location"), /removed=/);
+assert.match(await page(`/dashboard/reports/${reportId}`, devCookie), /Report not found/);
+assert.ok(!(await page("/dashboard", devCookie)).includes(`/dashboard/reports/${reportId}`));
+ok("reviewer invites: email sent, invitee signs up and returns to the report, owner-only control, removal ends access, no open redirect");
 
 // The panel: overview card per app, audits list, owner-only report view, account edits.
 const dash = await page("/dashboard");
@@ -269,7 +311,7 @@ assert.ok(dash.includes(`/go/book?from=app&amp;r=${reportId}`), "app card: Get i
 assert.ok((await page("/dashboard/audits")).includes(`/dashboard/reports/${reportId}`), "audits page lists the report");
 const inPanel = await page(`/dashboard/reports/${reportId}`);
 assert.match(inPanel, /Not safe to launch/);
-assert.match(inPanel, /Shareable link/);
+assert.match(inPanel, /Invite reviewers/);
 assert.ok(!inPanel.includes("TESTONLYabcdefghij"), "secret masked in the panel too");
 assert.match(await page(`/dashboard/reports/${reportId}`, soloCookie), /Report not found/, "another account can't open it in the panel");
 assert.ok((await page("/dashboard/setup")).includes(`/mcp/${token}`), "setup shows the personal MCP URL");
@@ -295,7 +337,11 @@ if (ADMIN_PASSWORD) {
   // Find this customer's account ID from the row that holds their email.
   const row = admin.slice(admin.indexOf(email));
   const id = row.match(/name="id" value="(acc_[^"]+)"/)[1];
-  assert.ok((await (await fetch(`${BASE}/admin/${id}`, { headers: auth })).text()).includes(`/r/${reportId}`), "admin can view the customer's audits");
+  assert.ok((await (await fetch(`${BASE}/admin/${id}`, { headers: auth })).text()).includes(`/admin/reports/${reportId}`), "admin can view the customer's audits");
+  const adminReport = await (await fetch(`${BASE}/admin/reports/${reportId}`, { headers: auth })).text();
+  assert.match(adminReport, /Not safe to launch/);
+  assert.ok(adminReport.includes(email), "admin sees the report's owner");
+  assert.equal((await fetch(`${BASE}/admin/reports/${reportId}`)).status, 401, "admin report view needs the password");
   assert.equal((await toggle(id, "disable")).status, 200);
   const off = textOf(await client.callTool({ name: "audit", arguments: { project_files: projectFiles } }));
   assert.match(off, /switched off/);
@@ -342,8 +388,9 @@ assert.equal(health.ok, true);
 ok(`health: storage=${health.storage}`);
 
 const missing = await fetch(`${BASE}/r/AAAAAAAAAAAAAAAAAAAAAA`);
-assert.match(await missing.text(), /Report not found/);
-ok("unknown report shows not-found page");
+assert.match(await missing.text(), /This security report is private/, "unknown reports look the same as real ones");
+assert.match(await page("/dashboard/reports/AAAAAAAAAAAAAAAAAAAAAA"), /Report not found/);
+ok("unknown report: same gate signed out, not found in the panel");
 
 const out = await fetch(`${BASE}/api/auth/logout`, { method: "POST", headers: { cookie }, redirect: "manual" });
 assert.equal(out.status, 303);

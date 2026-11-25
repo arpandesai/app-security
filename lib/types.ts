@@ -167,4 +167,6 @@ export interface Report {
   registryScan?: "done" | "skipped" | "unavailable";
   checksRun: number;
   agent?: string;
+  /** The account that ran the audit. Only it, its invited reviewers and MobileFirst admins can open the report. */
+  ownerId?: string;
 }

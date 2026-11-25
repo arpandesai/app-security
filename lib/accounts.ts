@@ -119,6 +119,11 @@ export async function addAccountReport(accountId: string, r: Report) {
   await kv.hset(reportsKey(accountId), r.id, JSON.stringify(entry), FOREVER);
 }
 
+/** True when this account ran the audit behind the report. */
+export async function ownsReport(accountId: string, reportId: string) {
+  return !!(await kv.hget(reportsKey(accountId), reportId));
+}
+
 export async function listAccountReports(accountId: string): Promise<AccountReport[]> {
   const raw = await kv.hgetall(reportsKey(accountId));
   return Object.values(raw)

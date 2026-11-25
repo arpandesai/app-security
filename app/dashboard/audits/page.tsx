@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { BRAND } from "@/lib/config";
 import { listAccountReports } from "@/lib/accounts";
+import { listSharedWithMe } from "@/lib/sharing";
 import { Panel, requireAccount } from "../panel";
 import { AuditRows, plural } from "../parts";
 
@@ -9,7 +10,7 @@ export const metadata: Metadata = { title: `Audits — ${BRAND}`, robots: { inde
 
 export default async function Audits() {
   const account = await requireAccount();
-  const reports = await listAccountReports(account.id);
+  const [reports, shared] = await Promise.all([listAccountReports(account.id), listSharedWithMe(account.email)]);
 
   return (
     <Panel
@@ -29,6 +30,16 @@ export default async function Audits() {
           </p>
         </section>
       )}
+      {shared.length ? (
+        <>
+          <h2 className="pn-sec" style={{ marginTop: 36 }}>
+            Shared with you
+          </h2>
+          <section className="card tbl">
+            <AuditRows reports={shared} />
+          </section>
+        </>
+      ) : null}
     </Panel>
   );
 }
