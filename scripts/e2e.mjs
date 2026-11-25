@@ -7,16 +7,17 @@ import assert from "node:assert/strict";
 
 const BASE = process.env.MFS_URL || "http://localhost:3000";
 const FIXTURE = new URL("../test-fixtures/payflow-expo/", import.meta.url).pathname;
-const MARKERS = /^(package\.json|app\.json|app\.config\.(js|ts)|pubspec\.yaml|AndroidManifest\.xml|build\.gradle(\.kts)?|Info\.plist|Podfile|Package\.swift|google-services\.json|GoogleService-Info\.plist|firebase\.json|firestore\.rules|config\.toml)$/;
+const WEB_FIXTURE = new URL("../test-fixtures/linkboard-next/", import.meta.url).pathname;
+const MARKERS = /^(package\.json|app\.json|app\.config\.(js|ts)|next\.config\.(js|mjs|ts)|vite\.config\.(js|mjs|ts)|pubspec\.yaml|AndroidManifest\.xml|build\.gradle(\.kts)?|Info\.plist|Podfile|Package\.swift|google-services\.json|GoogleService-Info\.plist|firebase\.json|firestore\.rules|config\.toml)$/;
 
-function walk(dir, out = []) {
+function walk(dir, root = dir, out = []) {
   for (const name of readdirSync(dir)) {
-    if (["node_modules", "Pods", "build", ".git"].includes(name)) continue;
+    if (["node_modules", "Pods", "build", ".git", ".next"].includes(name)) continue;
     const p = join(dir, name);
     if (statSync(p).isDirectory()) {
-      if (name === "migrations" || name.endsWith(".xcodeproj")) out.push(relative(FIXTURE, p));
-      walk(p, out);
-    } else if (MARKERS.test(name)) out.push(relative(FIXTURE, p));
+      if (name === "migrations" || name.endsWith(".xcodeproj")) out.push(relative(root, p));
+      walk(p, root, out);
+    } else if (MARKERS.test(name)) out.push(relative(root, p));
   }
   return out;
 }
@@ -74,6 +75,22 @@ const TRUTH = {
 };
 
 const pkg = JSON.parse(readFileSync(join(FIXTURE, "package.json"), "utf8"));
+const webPkg = JSON.parse(readFileSync(join(WEB_FIXTURE, "package.json"), "utf8"));
+
+// Ground truth for the web fixture (Next.js with Supabase).
+const WEB_TRUTH = {
+  "MFS-SECRETS-01": { status: "fail", evidence: [ev(".env", 3, "NEXT_PUBLIC_OPENAI_API_KEY=sk-proj-TESTONLYwebabcdefghijklmnopqrstuvwxyz0123")] },
+  "MFS-SECRETS-02": { status: "fail", evidence: [ev("lib/ai.ts", 4, "new OpenAI({ apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY, dangerouslyAllowBrowser: true })")] },
+  "MFS-BACKEND-02": { status: "fail", evidence: [ev("supabase/migrations/0001_init.sql", 1, "create table public.posts ( — no enable row level security")] },
+  "MFS-BACKEND-04": { status: "fail", evidence: [ev("app/api/posts/[id]/route.ts", 5, 'await supabase.from("posts").delete().eq("id", id);')] },
+  "MFS-BACKEND-10": { status: "fail", evidence: [ev("app/api/preview/route.ts", 3, "const page = await fetch(url);"), ev("next.config.mjs", 4, 'images: { remotePatterns: [{ protocol: "https", hostname: "**" }] },')] },
+  "MFS-PLATFORM-05": { status: "fail", evidence: [ev("app/components/Post.tsx", 7, "<div dangerouslySetInnerHTML={{ __html: post.body_html }} />")] },
+  "MFS-PLATFORM-06": { status: "fail", evidence: [ev("next.config.mjs", 2, "const nextConfig = { — no headers()")] },
+  "MFS-PLATFORM-07": { status: "fail", evidence: [ev("app/auth/callback/route.ts", 5, "return NextResponse.redirect(next);")] },
+  "MFS-RESILIENCE-02": { status: "not_applicable", note: "Link-sharing site; no money, health or identity data." },
+  "MFS-AI-02": { status: "not_applicable" },
+  "MFS-AI-03": { status: "not_applicable" },
+};
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const post = (path, body) =>
@@ -148,8 +165,8 @@ ok("server instructions present");
 
 // Unknown project → helpful message, no session
 const none = textOf(await client.callTool({ name: "audit", arguments: { project_files: ["README.md"] } }));
-assert.match(none, /No mobile app found/);
-ok("non-mobile project handled");
+assert.match(none, /No supported app found/);
+ok("unsupported project handled");
 
 const projectFiles = walk(FIXTURE);
 const start = await client.callTool({
@@ -242,6 +259,7 @@ ok("report page renders; secret masked server-side");
 assert.match(html, /react-native-secure-storage-pro@1\.0\.2/);
 assert.match(html, /Not found on the public registry/);
 assert.match(html, /Mobile Top 10 2024: M1 Improper Credential Usage/);
+assert.ok(!/Top 10 2025: A0/.test(html), "a mobile-only report doesn't list web standards");
 assert.match(html, /Launch level/);
 ok("registry check flags the invented package; standards shown");
 assert.ok(html.includes(`/go/book?from=report&amp;r=${reportId}`), "report header: Get it fixed");
@@ -254,6 +272,55 @@ assert.ok(book.headers.get("location").startsWith(BOOKING), "redirects to the bo
 const bookOdd = await fetch(`${BASE}/go/book?from=<script>&r=../../etc`, { redirect: "manual" });
 assert.equal(bookOdd.status, 302, "unknown sources and bad report IDs still reach the booking page");
 ok("every fix action books a call: header, each finding, end of report, chat; /go/book logs and redirects");
+
+// A web app (Next.js with Supabase): web-only checks in, mobile-only checks out, web wording in the report.
+const webStart = textOf(
+  await client.callTool({
+    name: "audit",
+    arguments: {
+      project_files: walk(WEB_FIXTURE),
+      dependency_names: Object.keys(webPkg.dependencies),
+      app_name: "Linkboard",
+      app_description: "Link-sharing site",
+      agent: "Codex",
+    },
+  })
+);
+const webId = webStart.match(/Audit ID: (\S+)/)[1];
+const webRules = [...webStart.matchAll(/^### (MFS-[A-Z]+-\d+)/gm)].map((m) => m[1]);
+assert.match(webStart, /Detected stack: Next\.js · Web · Supabase/);
+assert.equal(webRules.length, 36);
+for (const id of ["MFS-PLATFORM-05", "MFS-PLATFORM-06", "MFS-PLATFORM-07", "MFS-AUTH-05", "MFS-AUTH-06", "MFS-BACKEND-09", "MFS-BACKEND-10", "MFS-CODE-08", "MFS-BACKEND-01", "MFS-BACKEND-02"])
+  assert.ok(webRules.includes(id), `${id} runs on a web app`);
+for (const id of ["MFS-STORAGE-02", "MFS-NETWORK-03", "MFS-PLATFORM-01", "MFS-PLATFORM-04", "MFS-CODE-06", "MFS-PRIVACY-05", "MFS-RESILIENCE-03", "MFS-BACKEND-03"])
+  assert.ok(!webRules.includes(id), `${id} doesn't run on a Next.js app with Supabase`);
+assert.match(webStart, /### MFS-SECRETS-01 · critical · Secret keys exposed to the browser/);
+assert.ok(!/\.dart|Info\.plist|\.gradle|\{kt,java\}|pubspec|Podfile|Pods/.test(webStart), "no mobile file types or folders in a web checklist");
+const webWording = webStart.split("\n").filter((l) => /^(### |Check: |Fail if: |Pass if: )/.test(l)).join("\n");
+assert.ok(!/Keychain|Keystore|__DEV__|kDebugMode|release app|WebView/.test(webWording), "no mobile wording in a web checklist");
+ok(`web app: ${webRules.length} checks, 8 web-only checks in, mobile-only checks out, web wording, no mobile globs`);
+
+let webFinal = "";
+for (const id of webRules) {
+  if (id === "MFS-CODE-01") continue;
+  const args = { audit_id: webId, results: [{ rule_id: id, ...(WEB_TRUTH[id] || { status: "pass" }) }] };
+  if (id === "MFS-CODE-07") args.dependencies = Object.entries(webPkg.dependencies).map(([name, version]) => ({ ecosystem: "npm", name, version }));
+  const out = textOf(await client.callTool({ name: "submit_findings", arguments: args }));
+  if (out.includes("Full report")) webFinal = out;
+}
+if (!webFinal) webFinal = textOf(await client.callTool({ name: "submit_findings", arguments: { audit_id: webId, results: [] } }));
+assert.match(webFinal, /Not safe to launch/);
+assert.match(webFinal, /Secret keys exposed to the browser/);
+const webReportId = webFinal.match(/Full report with fix guidance: \S+\/r\/(\S+)/)[1];
+const webHtml = await page(`/dashboard/reports/${webReportId}`);
+writeFileSync("/tmp/mfs-web-report.html", webHtml);
+assert.match(webHtml, /Next\.js · Web · Supabase/);
+assert.match(webHtml, /Secret keys exposed to the browser/);
+assert.match(webHtml, /Unsafe HTML rendering/);
+assert.match(webHtml, /Top 10 2025: A05 Injection/);
+assert.ok(!webHtml.includes("Mobile Top 10"), "a web-only report doesn't list mobile standards");
+assert.ok(!webHtml.includes("TESTONLYwebabcdefghij"), "live secret must be masked");
+ok(`web report: ${webFinal.match(/Score (\d+)/)[1]}/100, web titles, web standards only, secret masked`);
 
 // Invite a reviewer: they get an email, sign up with that address, return to the report, and can read it.
 const reviewers = (body, c = cookie, headers = {}) =>

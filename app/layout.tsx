@@ -9,12 +9,12 @@ import { CSS } from "@/lib/styles";
 import { BRAND } from "@/lib/config";
 
 export const metadata: Metadata = {
-  title: `Free mobile app security report in 5 minutes | ${BRAND}`,
+  title: `Free app security report in 5 minutes | ${BRAND}`,
   description:
-    "Your AI coding agent checks your React Native, Flutter, iOS or Android code against 46 security checks. Get a verdict, a score and the exact lines to fix. Free.",
+    "Your AI coding agent checks your mobile or web app against 54 security checks. Get a verdict, a score and the exact lines to fix. Free.",
   openGraph: {
     title: "Get your app security report in 5 minutes",
-    description: "46 security checks mapped to OWASP, run by the coding agent you already use. Free. Your codebase never leaves your machine.",
+    description: "54 security checks mapped to OWASP, run by the coding agent you already use. Free. Your codebase never leaves your machine.",
     url: "https://app-security.mobilefirst.in",
     siteName: BRAND,
     type: "website",

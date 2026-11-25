@@ -1,9 +1,9 @@
 # MobileFirst Secure
 
-A hosted MCP server that runs a security audit of a mobile app's **source code**, through the coding agent the founder already uses. The user types `audit`, their agent checks the code on their machine against the MobileFirst Secure rule engine, and the server turns the findings into a scored, founder-readable report with a private link.
+A hosted MCP server that runs a security audit of a mobile or web app's **source code**, through the coding agent the founder already uses. The user types `audit`, their agent checks the code on their machine against the MobileFirst Secure rule engine, and the server turns the findings into a scored, founder-readable report with a private link.
 
 - **Endpoint:** a personal URL per customer, `https://app-security.mobilefirst.in/mcp/<token>` (Streamable HTTP). Customers get it by entering name, company (optional) and email on the landing page.
-- **Stacks:** React Native (incl. Expo), Flutter, native Android, native iOS. Supabase and Firebase backends are detected automatically.
+- **Stacks:** mobile: React Native (incl. Expo), Flutter, native Android, native iOS. Web: Next.js, React (Vite or Create React App). Supabase and Firebase backends are detected automatically. A monorepo with a mobile app and a web app gets both sets of checks.
 - **Scope:** audit only. The audit never changes the user's code.
 
 ## How an audit runs
@@ -12,9 +12,9 @@ A hosted MCP server that runs a security audit of a mobile app's **source code**
 User types "audit" in Claude Code / Claude app / Codex / ChatGPT desktop / Cursor / VS Code
         │
         ▼
-1. Agent lists marker files (package.json, pubspec.yaml, AndroidManifest.xml, Info.plist…)
+1. Agent lists marker files (package.json, next.config.*, vite.config.*, pubspec.yaml, AndroidManifest.xml, Info.plist…)
    and dependency names  ──►  audit
-2. Server detects the stack and returns the checklist for it (up to 46 checks):
+2. Server detects the stack and returns the checklist for it (up to 46 checks for a mobile app, 37 for a web app):
    where to look, what to search for, what counts as fail or pass
 3. Agent checks the code locally, one category at a time  ──►  submit_findings
    (status + file:line + snippet per check; the server rejects incomplete or evidence-less fails)
@@ -103,33 +103,35 @@ Customers copy setup steps with their personal URL from their dashboard. The pat
 
 In clients that show MCP prompts as slash commands, the `audit` prompt also appears. In Claude Code it's `/mcp__mobilefirst-secure__audit`. Typing plain "audit" works everywhere, because the server's instructions tell the agent to start the audit.
 
-## Rule catalog (46 rules in 11 areas, version 2026.11.2)
+## Rule catalog (54 rules in 11 areas, version 2026.11.3)
 
-Each rule maps to OWASP MASVS v2.1 and MASWE IDs (taken from the OWASP MASWE repository) plus CWE, and to the other public standards it covers: OWASP Mobile Top 10 2024, ASVS 5.0, API Security Top 10 2023, LLM Top 10 2025 and the Agentic Top 10 2026. Rules only run when they apply to the detected stack. For example, Firebase rules are skipped for a Supabase app.
+Each rule maps to OWASP MASVS v2.1 and MASWE IDs (taken from the OWASP MASWE repository) plus CWE, and to the other public standards it covers: OWASP Mobile Top 10 2024, ASVS 5.0, API Security Top 10 2023, LLM Top 10 2025 and the Agentic Top 10 2026. Web rules also map to the OWASP Top 10 2025. Rules only run when they apply to the detected stack. For example, Firebase rules are skipped for a Supabase app.
+
+**Platforms.** 29 rules cover mobile and web apps, 17 are mobile only and 8 are web only. Shared rules keep one ID and carry web variants (where to look in a Next.js or React project) plus web wording, used when the project is a web app only; a project with both keeps the default wording. Web-only audits also show web standards only, and mobile-only audits mobile standards only. Web support lives in `lib/rules/web.ts`.
 
 Every rule has a level:
 
-- **Launch** (23): every app, before it goes live.
-- **Scale** (17): once real users and money depend on it.
+- **Launch** (27): every app, before it goes live.
+- **Scale** (21): once real users and money depend on it.
 - **Trust** (6): only apps handling money, health or identity data. The agent answers `not_applicable` for other apps.
 
 | Area | Rules (severity, level) |
 |---|---|
 | Exposed Secrets | Secret keys shipped in the app (critical, Launch); AI provider called directly from the app (high, Launch); Signing keys or cloud credentials committed to the repo (medium, Scale); AI tool config files committed with tokens (high, Launch) |
-| Backend Exposure | Supabase admin key inside the app (critical, Launch); Supabase tables open without row-level security (critical, Launch); Firebase database or storage open to everyone (critical, Launch); Server doesn't verify ownership or permissions (critical, Launch); Purchases unlocked without server verification (medium, Scale); No rate limits or spend caps on paid services (high, Launch) |
+| Backend Exposure | Supabase admin key inside the app (critical, Launch); Supabase tables open without row-level security (critical, Launch); Firebase database or storage open to everyone (critical, Launch); Server doesn't verify ownership or permissions (critical, Launch); Purchases unlocked without server verification (medium, Scale); No rate limits or spend caps on paid services (high, Launch); *web:* CORS open to any origin with credentials (high, Launch); *web:* Server fetches URLs supplied by users (high, Scale) |
 | Data Storage | Login tokens or personal data stored unencrypted (high, Launch); Sensitive files saved where other apps can read them (high, Launch); Sensitive data leaking into logs or URLs (medium, Scale); Private app data copied into device backups (medium, Trust); Local database not encrypted (medium, Trust) |
 | Network Security | Unencrypted HTTP connections (high, Launch); Certificate checks switched off (critical, Launch); No certificate pinning for high-value traffic (low, Trust) |
-| Authentication | Biometric lock can be bypassed (high, Launch); Insecure login flow or OAuth secret in the app (high, Launch); Logout leaves the session alive (medium, Scale); No re-check before sensitive account changes (low, Trust) |
+| Authentication | Biometric lock can be bypassed (high, Launch); Insecure login flow or OAuth secret in the app (high, Launch); Logout leaves the session alive (medium, Scale); No re-check before sensitive account changes (low, Trust); *web:* Session cookies without secure flags (medium, Launch); *web:* State-changing requests without CSRF protection (medium, Scale) |
 | Cryptography | Encryption keys hardcoded in the code (high, Launch); Weak cryptography (medium, Scale) |
-| Platform Interaction | Android components open to other apps (high, Launch); Deep links trigger actions without checks (high, Launch); WebView exposes app functions to web content (high, Launch); Sensitive data exposed on screen (medium, Scale) |
+| Platform Interaction | Android components open to other apps (high, Launch); Deep links trigger actions without checks (high, Launch); WebView exposes app functions to web content (high, Launch); Sensitive data exposed on screen (medium, Scale); *web:* Unsafe HTML rendering (high, Launch); *web:* Missing security headers (medium, Scale); *web:* Open redirects (medium, Scale) |
 | AI Features | AI output used without safety checks (high, Launch); AI can be steered by content it reads (high, Scale); AI acts beyond the user's permissions (high, Scale) |
-| Code Health | Libraries with known vulnerabilities (OSV severity, Launch); Outdated platform targets (medium, Scale); Test leftovers in the release app (high, Launch); Untrusted input reaches queries or code execution (medium, Scale); Code loaded after install isn't verified (medium, Scale); No way to force updates or switch features off remotely (medium, Scale); Fake, look-alike or unpinned packages (high, Launch) |
+| Code Health | Libraries with known vulnerabilities (OSV severity, Launch); Outdated platform targets (medium, Scale); Test leftovers in the release app (high, Launch); Untrusted input reaches queries or code execution (medium, Scale); Code loaded after install isn't verified (medium, Scale); No way to force updates or switch features off remotely (medium, Scale); Fake, look-alike or unpinned packages (high, Launch); *web:* Server code builds queries or commands from user input (high, Launch) |
 | Privacy | Permissions requested but not needed (medium, Scale); Apple privacy manifest missing or incomplete (medium, Scale); Tracking without user consent (medium, Scale); Personal data sent to third parties (medium, Scale); No in-app account deletion (medium, Scale) |
 | Tamper Resistance | Debug features enabled in release builds (high, Launch); App code ships readable (low, Trust); No protection against tampered apps or devices (low, Trust) |
 
 Two checks get help from the server. MFS-CODE-01 sends dependencies to OSV.dev for known vulnerabilities. MFS-CODE-07 adds a public registry lookup (npm, pub.dev) to the agent's lockfile result: packages that don't exist (often invented by AI coding tools) or that almost nobody downloads get flagged.
 
-Rules live in `lib/rules/`. To add one, add an object to the right file and give it a level and standards in `lib/rules/meta.ts`. The catalog refuses to load if a rule ID is duplicated, a rule has no meta entry, or a title contains "and" or "&". Platform thresholds (Android target SDK 36, which Google Play has required since 31 Aug 2026; min SDK 24; iOS 15) are in `lib/rules/globs.ts`. Update them each year.
+Rules live in `lib/rules/`. To add one, add an object to the right file and give it a level and standards in `lib/rules/meta.ts`. Web-only rules go in `WEB_RULES` in `lib/rules/web.ts` with `platforms: ["web"]`; web support for an existing rule goes in `WEB_SUPPORT`. The catalog refuses to load if a rule ID is duplicated, a rule has no meta entry, or a title contains "and" or "&". Platform thresholds (Android target SDK 36, which Google Play has required since 31 Aug 2026; min SDK 24; iOS 15) are in `lib/rules/globs.ts`. Update them each year.
 
 ## Local development
 
@@ -138,7 +140,7 @@ npm install
 npm run dev                      # http://localhost:3000, MCP at /mcp
 ```
 
-To run the end-to-end test, which plays the coding agent against an insecure Expo + Supabase sample app in `test-fixtures/`:
+To run the end-to-end test, which plays the coding agent against two insecure sample apps in `test-fixtures/` (Expo with Supabase, and Next.js with Supabase):
 
 ```bash
 node scripts/mock-osv.mjs &           # local stand-in for api.osv.dev, npm, pub.dev and Resend
@@ -151,7 +153,7 @@ MFS_URL=http://localhost:3000 ADMIN_PASSWORD=test npm run test:e2e
 
 To test the Redis code path too, run `node scripts/mock-upstash.mjs &` (a local stand-in for the Upstash REST API) and start the server with `KV_REST_API_URL=http://localhost:8788 KV_REST_API_TOKEN=test`. Run this whenever `lib/store.ts` changes.
 
-The test covers: sign-up by emailed code (wrong, reused and throttled codes, invalid and bot sign-ups), sessions and sign-out, the shared and unknown URLs pointing users to sign up, tool and prompt discovery, stack detection, rejection of invalid submissions, category-by-category submission, server-side secret masking, dependency CVEs, the registry check for invented packages, private report links (signed-out gate, owner redirect, no access for others), reviewer invites (email sent, invitee sign-up with return to the report, Shared with you, owner-only invite and remove, removal ends access), booking links and click logging, the customer panel (overview, audits, setup, account edits), admin report view, the admin page (password, customer list, switching a URL off and on), parallel submissions, and the fallback when OSV is unreachable.
+The test covers: sign-up by emailed code (wrong, reused and throttled codes, invalid and bot sign-ups), sessions and sign-out, the shared and unknown URLs pointing users to sign up, tool and prompt discovery, stack detection, a web app audit (web-only checks in, mobile-only checks out, web wording and standards), rejection of invalid submissions, category-by-category submission, server-side secret masking, dependency CVEs, the registry check for invented packages, private report links (signed-out gate, owner redirect, no access for others), reviewer invites (email sent, invitee sign-up with return to the report, Shared with you, owner-only invite and remove, removal ends access), booking links and click logging, the customer panel (overview, audits, setup, account edits), admin report view, the admin page (password, customer list, switching a URL off and on), parallel submissions, and the fallback when OSV is unreachable.
 
 ## Project layout
 

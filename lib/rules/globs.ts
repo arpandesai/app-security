@@ -25,24 +25,37 @@ export const G = {
   lockfiles:
     "**/package-lock.json,**/yarn.lock,**/pnpm-lock.yaml,**/bun.lock,**/bun.lockb,**/pubspec.lock,**/Podfile.lock,**/Package.resolved,**/gradle.lockfile",
   ci: ".github/workflows/*.yml,codemagic.yaml,bitrise.yml,fastlane/*,**/*.sh,Makefile,package.json",
+  // Web apps
+  webConfig: "next.config.{js,mjs,ts},vite.config.{js,mjs,ts},vercel.json,netlify.toml,**/_headers",
+  middleware: "middleware.{js,ts},src/middleware.{js,ts}",
+  webRoutes:
+    "app/**/route.{js,ts},src/app/**/route.{js,ts},pages/api/**,src/pages/api/**,app/**/actions.{js,ts},src/app/**/actions.{js,ts},server/**,api/**",
+  html: "index.html,public/**/*.html",
 };
 
+/** Split comma-separated glob lists without breaking brace sets such as *.{js,ts}. */
+export const splitGlobs = (g: string) => g.split(/,(?![^{]*\})/).map((x) => x.trim()).filter(Boolean);
+
+/** Globs that only matter for mobile apps. Dropped from shared "any" variants when the project is web only. */
+export const MOBILE_ONLY_GLOBS = new Set(
+  [
+    G.dart, G.kotlinJava, G.swiftObjc, G.manifest, G.androidResXml, G.gradle, G.plist, G.entitlements,
+    G.privacyManifest, G.xcodeProject, G.expoConfig, G.pubspec, "fastlane/*", "**/Podfile", "**/Package.swift",
+    "**/pubspec.lock", "**/Podfile.lock", "**/Package.resolved", "**/gradle.lockfile",
+  ].flatMap(splitGlobs)
+);
+
 /** Folders the agent must skip: third-party and generated code. */
-export const EXCLUDE = [
-  "node_modules",
-  "Pods",
-  "build",
-  ".dart_tool",
-  ".gradle",
-  ".expo",
-  "dist",
-  "vendor",
-  "DerivedData",
-  ".git",
-  "android/app/build",
-  "ios/build",
+const EXCLUDE_COMMON = ["node_modules", "build", "dist", "vendor", ".git", "coverage"];
+const EXCLUDE_MOBILE = ["Pods", ".dart_tool", ".gradle", ".expo", "DerivedData", "android/app/build", "ios/build"];
+const EXCLUDE_WEB = [".next", ".vercel", "out"];
+export const excludeFor = (kinds: { mobile: boolean; web: boolean }) => [
+  ...EXCLUDE_COMMON,
+  ...(kinds.mobile ? EXCLUDE_MOBILE : []),
+  ...(kinds.web ? EXCLUDE_WEB : []),
   "*.lock (except when collecting dependencies)",
 ];
+export const EXCLUDE = excludeFor({ mobile: true, web: true });
 
 /** Platform thresholds. Update yearly when store requirements move. */
 export const THRESHOLDS = {

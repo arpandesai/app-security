@@ -12,7 +12,7 @@ import { kv, TTL, storageReady, STORAGE_NOT_READY } from "./store";
 import { BASE_URL, BRAND, bookHref, newId } from "./config";
 import { addAccountReport, type Access } from "./accounts";
 
-export const SERVER_INSTRUCTIONS = `${BRAND} runs a read-only security audit of a mobile app's source code (React Native/Expo, Flutter, native Android, native iOS). The audit runs entirely inside your coding agent on the user's machine: this server supplies the rules and writes the report.
+export const SERVER_INSTRUCTIONS = `${BRAND} runs a read-only security audit of an app's source code: mobile apps (React Native/Expo, Flutter, native Android, native iOS) and web apps (Next.js, React). The audit runs entirely inside your coding agent on the user's machine: this server supplies the rules and writes the report.
 When the user says "audit", asks for a security audit or check, or asks whether their app is safe to launch, call the \`audit\` tool and follow its instructions until \`submit_findings\` returns the report link.
 Never modify the user's files during the audit.`;
 
@@ -20,14 +20,14 @@ const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
 const errorText = (t: string) => ({ content: [{ type: "text" as const, text: t }], isError: true });
 
 const DETECT_FILES =
-  "package.json, app.json, app.config.js, app.config.ts, pubspec.yaml, AndroidManifest.xml, build.gradle, build.gradle.kts, Info.plist, Podfile, Package.swift, *.xcodeproj, google-services.json, GoogleService-Info.plist, firebase.json, firestore.rules, supabase/config.toml, supabase/migrations";
+  "package.json, app.json, app.config.js, app.config.ts, next.config.js, next.config.mjs, next.config.ts, vite.config.js, vite.config.mjs, vite.config.ts, pubspec.yaml, AndroidManifest.xml, build.gradle, build.gradle.kts, Info.plist, Podfile, Package.swift, *.xcodeproj, google-services.json, GoogleService-Info.plist, firebase.json, firestore.rules, supabase/config.toml, supabase/migrations";
 
 const auditInput = z.object({
   project_files: z
     .array(z.string())
     .min(1)
     .describe(
-      `Repo-relative paths of every file or folder matching these names (search the whole repo, skip node_modules, Pods, build, .dart_tool): ${DETECT_FILES}`
+      `Repo-relative paths of every file or folder matching these names (search the whole repo, skip node_modules, Pods, build, .dart_tool, .next): ${DETECT_FILES}`
     ),
   dependency_names: z
     .array(z.string())
@@ -37,12 +37,12 @@ const auditInput = z.object({
     .string()
     .optional()
     .describe(
-      "The app's name, read from the code: expo.name in app.json or app.config, name in pubspec.yaml, android:label (or app_name in strings.xml) in the Android app, or CFBundleDisplayName / CFBundleName in Info.plist. Always send it: reports are grouped by app name in the user's dashboard."
+      "The app's name, read from the code: expo.name in app.json or app.config, name in pubspec.yaml, android:label (or app_name in strings.xml) in the Android app, CFBundleDisplayName / CFBundleName in Info.plist, or for a web app the site title (metadata title in the root layout, or <title> in index.html), falling back to name in package.json. Always send it: reports are grouped by app name in the user's dashboard."
     ),
   app_description: z
     .string()
     .optional()
-    .describe("One line on what the app does, e.g. 'peer-to-peer payments app'. Used to judge checks that only matter for apps handling money, health or identity data."),
+    .describe("One line on what the app or site does, e.g. 'peer-to-peer payments app'. Used to judge checks that only matter for apps handling money, health or identity data."),
   agent: z.string().optional().describe("Your product name, e.g. Claude Code, Codex, Cursor, Copilot."),
 });
 
@@ -138,14 +138,14 @@ export function accessMessage(access: Access): string | null {
 export function registerMobileFirstSecure(server: McpServer, access: Access = { status: "missing" }) {
   server.registerPrompt(
     "audit",
-    { title: `${BRAND}: audit this app`, description: "Run a read-only security audit of the mobile app in this project." },
+    { title: `${BRAND}: audit this app`, description: "Run a read-only security audit of the mobile or web app in this project." },
     () => ({
       messages: [
         {
           role: "user" as const,
           content: {
             type: "text" as const,
-            text: `Run a ${BRAND} security audit of the mobile app in this project. Call the \`audit\` tool and follow its instructions until the report link is ready. Don't modify any files.`,
+            text: `Run a ${BRAND} security audit of the app in this project. Call the \`audit\` tool and follow its instructions until the report link is ready. Don't modify any files.`,
           },
         },
       ],
@@ -157,7 +157,7 @@ export function registerMobileFirstSecure(server: McpServer, access: Access = { 
     {
       title: `${BRAND}: start security audit`,
       description:
-        `Start a ${BRAND} security audit of the mobile app in the current project (React Native/Expo, Flutter, native Android, native iOS). ` +
+        `Start a ${BRAND} security audit of the app in the current project: mobile (React Native/Expo, Flutter, native Android, native iOS) or web (Next.js, React with Vite or Create React App). ` +
         `Use when the user says "audit", asks for a security audit/check, or asks if the app is safe to launch. ` +
         `First list the project's marker files (${DETECT_FILES}) and the dependency names from package.json / pubspec.yaml, then call this tool. ` +
         "It returns the checklist to run locally on the code. Read-only: never modify files.",
@@ -171,8 +171,8 @@ export function registerMobileFirstSecure(server: McpServer, access: Access = { 
       const profile = detectProfile(args.project_files, args.dependency_names);
       if (!profile) {
         return text(
-          `No mobile app found from these files. ${BRAND} audits React Native/Expo, Flutter, native Android and native iOS projects. ` +
-            "Make sure you are at the project root and included files like package.json, pubspec.yaml, AndroidManifest.xml, build.gradle, Info.plist or Podfile, then call `audit` again."
+          `No supported app found from these files. ${BRAND} audits mobile apps (React Native/Expo, Flutter, native Android, native iOS) and web apps (Next.js, React with Vite or Create React App). ` +
+            "Make sure you are at the project root and included files like package.json, next.config.*, vite.config.*, pubspec.yaml, AndroidManifest.xml, build.gradle, Info.plist or Podfile, plus the dependency names from package.json, then call `audit` again."
         );
       }
       const planned = planRules(profile);
@@ -194,7 +194,7 @@ export function registerMobileFirstSecure(server: McpServer, access: Access = { 
         `Detected stack: ${profile.label}`,
         args.app_description ? `App: ${args.app_description}` : "",
         "",
-        agentInstructions(session.id, planned.length),
+        agentInstructions(session.id, planned.length, profile),
       ]
         .filter((l) => l !== "")
         .join("\n");
