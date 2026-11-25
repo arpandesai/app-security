@@ -11,6 +11,7 @@
     "@react-native-async-storage/async-storage": "1.23.1",
     "react-native-webview": "13.12.2",
     "axios": "0.21.0",
-    "openai": "4.20.0"
+    "openai": "4.20.0",
+    "react-native-secure-storage-pro": "1.0.2"
   }
 }

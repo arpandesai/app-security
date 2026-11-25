@@ -14,12 +14,13 @@ User types "audit" in Claude Code / Claude app / Codex / ChatGPT desktop / Curso
         ▼
 1. Agent lists marker files (package.json, pubspec.yaml, AndroidManifest.xml, Info.plist…)
    and dependency names  ──►  audit
-2. Server detects the stack and returns the checklist for it (~46 checks):
+2. Server detects the stack and returns the checklist for it (up to 46 checks):
    where to look, what to search for, what counts as fail or pass
 3. Agent checks the code locally, one category at a time  ──►  submit_findings
    (status + file:line + snippet per check; the server rejects incomplete or evidence-less fails)
 4. When every check has an answer, the server:
-   masks any live secrets in snippets, checks dependencies against OSV.dev,
+   masks any live secrets in snippets, checks dependencies against OSV.dev
+   and the npm / pub.dev registries,
    scores, picks a verdict, saves the report
 5. Agent shows the summary in chat: verdict, score, top 3 issues, report link
 6. Report page: full findings with fix guidance, plus "Get these fixed by MobileFirst"
@@ -69,24 +70,33 @@ Each agent needs one setup step, then the user types `audit` in their project.
 
 In clients that show MCP prompts as slash commands, the `audit` prompt also appears. In Claude Code it's `/mcp__mobilefirst-secure__audit`. Typing plain "audit" works everywhere, because the server's instructions tell the agent to start the audit.
 
-## Rule catalog (47 rules, version 2026.11.1)
+## Rule catalog (46 rules in 11 areas, version 2026.11.2)
 
-Each rule maps to OWASP MASVS v2.1 and MASWE IDs (taken from the OWASP MASWE repository) plus CWE. Rules only run when they apply to the detected stack. For example, Firebase rules are skipped for a Supabase app.
+Each rule maps to OWASP MASVS v2.1 and MASWE IDs (taken from the OWASP MASWE repository) plus CWE, and to the other public standards it covers: OWASP Mobile Top 10 2024, ASVS 5.0, API Security Top 10 2023, LLM Top 10 2025 and the Agentic Top 10 2026. Rules only run when they apply to the detected stack. For example, Firebase rules are skipped for a Supabase app.
 
-| Category | Rules |
+Every rule has a level:
+
+- **Launch** (23): every app, before it goes live.
+- **Scale** (17): once real users and money depend on it.
+- **Trust** (6): only apps handling money, health or identity data. The agent answers `not_applicable` for other apps.
+
+| Area | Rules (severity, level) |
 |---|---|
-| Exposed Secrets | Secret API keys shipped inside the app (critical); AI provider called directly from the app (high); Secrets in build-time environment variables (high); Signing keys or cloud credentials committed to the repo (medium) |
-| Backend Exposure | Supabase admin key inside the app (critical); Supabase tables open without row-level security (critical); Firebase database or storage open to everyone (critical); Access checks done only inside the app (high); Purchases unlocked without server verification (medium) |
-| Data Storage | Login tokens or personal data stored unencrypted (high); Sensitive files saved where other apps can read them (high); Sensitive data printed to logs (medium); Private app data copied into device backups (medium) |
-| Network Security | Certificate checks switched off (critical); Unencrypted HTTP connections (high); Sensitive data placed in URLs (medium); No certificate pinning for high-value traffic (low) |
-| Authentication | Biometric lock can be bypassed (high); Insecure login flow or OAuth secret in the app (high); Logout leaves the session alive (medium); No re-check before sensitive account changes (low) |
-| Cryptography | Encryption keys hardcoded in the code (high); Weak or broken encryption (medium); Weak hashing for passwords or integrity checks (medium); Predictable random values used for security (medium) |
-| Platform Interaction | Android components open to other apps (high); Deep links trigger actions without checks (high); WebView exposes app functions to web content (high); Password fields not masked (medium); Sensitive data copied to the clipboard (medium); Sensitive data shown in notifications (medium); Unsafe Android intents (medium); Sensitive screens can be captured (low) |
-| Code Health | Libraries with known vulnerabilities (OSV, severity from the database); Outdated platform targets (medium); Test shortcuts or backdoors left in (medium); Untrusted input reaches queries or code execution (medium); Code downloaded at runtime without verification (medium); No way to force users onto a safe version (low) |
-| Privacy | Permissions requested but not needed; Apple privacy manifest missing or incomplete; Tracking without user consent; Personal data sent to analytics or crash tools; No in-app account deletion (all medium) |
-| Tamper Resistance | Debug features enabled in release builds (high); App code ships readable (low); No protection against tampered apps or devices (low) |
+| Exposed Secrets | Secret keys shipped in the app (critical, Launch); AI provider called directly from the app (high, Launch); Signing keys or cloud credentials committed to the repo (medium, Scale); AI tool config files committed with tokens (high, Launch) |
+| Backend Exposure | Supabase admin key inside the app (critical, Launch); Supabase tables open without row-level security (critical, Launch); Firebase database or storage open to everyone (critical, Launch); Server doesn't verify ownership or permissions (critical, Launch); Purchases unlocked without server verification (medium, Scale); No rate limits or spend caps on paid services (high, Launch) |
+| Data Storage | Login tokens or personal data stored unencrypted (high, Launch); Sensitive files saved where other apps can read them (high, Launch); Sensitive data leaking into logs or URLs (medium, Scale); Private app data copied into device backups (medium, Trust); Local database not encrypted (medium, Trust) |
+| Network Security | Unencrypted HTTP connections (high, Launch); Certificate checks switched off (critical, Launch); No certificate pinning for high-value traffic (low, Trust) |
+| Authentication | Biometric lock can be bypassed (high, Launch); Insecure login flow or OAuth secret in the app (high, Launch); Logout leaves the session alive (medium, Scale); No re-check before sensitive account changes (low, Trust) |
+| Cryptography | Encryption keys hardcoded in the code (high, Launch); Weak cryptography (medium, Scale) |
+| Platform Interaction | Android components open to other apps (high, Launch); Deep links trigger actions without checks (high, Launch); WebView exposes app functions to web content (high, Launch); Sensitive data exposed on screen (medium, Scale) |
+| AI Features | AI output used without safety checks (high, Launch); AI can be steered by content it reads (high, Scale); AI acts beyond the user's permissions (high, Scale) |
+| Code Health | Libraries with known vulnerabilities (OSV severity, Launch); Outdated platform targets (medium, Scale); Test leftovers in the release app (high, Launch); Untrusted input reaches queries or code execution (medium, Scale); Code loaded after install isn't verified (medium, Scale); No way to force updates or switch features off remotely (medium, Scale); Fake, look-alike or unpinned packages (high, Launch) |
+| Privacy | Permissions requested but not needed (medium, Scale); Apple privacy manifest missing or incomplete (medium, Scale); Tracking without user consent (medium, Scale); Personal data sent to analytics or crash tools (medium, Scale); No in-app account deletion (medium, Scale) |
+| Tamper Resistance | Debug features enabled in release builds (high, Launch); App code ships readable (low, Trust); No protection against tampered apps or devices (low, Trust) |
 
-Rules live in `lib/rules/`. To add one, add an object to the right file. The catalog refuses to load if a rule ID is duplicated or a title contains "and" or "&". Platform thresholds (Android target SDK 36, which Google Play has required since 31 Aug 2026; min SDK 24; iOS 15) are in `lib/rules/globs.ts`. Update them each year.
+Two checks get help from the server. MFS-CODE-01 sends dependencies to OSV.dev for known vulnerabilities. MFS-CODE-07 adds a public registry lookup (npm, pub.dev) to the agent's lockfile result: packages that don't exist (often invented by AI coding tools) or that almost nobody downloads get flagged.
+
+Rules live in `lib/rules/`. To add one, add an object to the right file and give it a level and standards in `lib/rules/meta.ts`. The catalog refuses to load if a rule ID is duplicated, a rule has no meta entry, or a title contains "and" or "&". Platform thresholds (Android target SDK 36, which Google Play has required since 31 Aug 2026; min SDK 24; iOS 15) are in `lib/rules/globs.ts`. Update them each year.
 
 ## Local development
 
@@ -98,14 +108,17 @@ npm run dev                      # http://localhost:3000, MCP at /mcp
 To run the end-to-end test, which plays the coding agent against an insecure Expo + Supabase sample app in `test-fixtures/`:
 
 ```bash
-node scripts/mock-osv.mjs &                                   # local stand-in for api.osv.dev
-PUBLIC_BASE_URL=http://localhost:3000 OSV_API_URL=http://localhost:8787 npm run build && npx next start &
+node scripts/mock-osv.mjs &           # local stand-in for api.osv.dev, npm and pub.dev
+npm run build
+PUBLIC_BASE_URL=http://localhost:3000 OSV_API_URL=http://localhost:8787 \
+  NPM_REGISTRY_URL=http://localhost:8787/npm NPM_DOWNLOADS_URL=http://localhost:8787/downloads \
+  PUB_API_URL=http://localhost:8787/pub npx next start &
 MFS_URL=http://localhost:3000 npm run test:e2e
 ```
 
 To test the Redis code path too, run `node scripts/mock-upstash.mjs &` (a local stand-in for the Upstash REST API) and start the server with `KV_REST_API_URL=http://localhost:8788 KV_REST_API_TOKEN=test`. Run this whenever `lib/store.ts` changes.
 
-The test covers: tool and prompt discovery, stack detection, rejection of invalid submissions, category-by-category submission, server-side secret masking, dependency CVEs, the report page, lead capture, parallel submissions, and the fallback when OSV is unreachable.
+The test covers: tool and prompt discovery, stack detection, rejection of invalid submissions, category-by-category submission, server-side secret masking, dependency CVEs, the registry check for invented packages, the report page, lead capture, parallel submissions, and the fallback when OSV is unreachable.
 
 ## Project layout
 
@@ -114,12 +127,13 @@ app/mcp/route.ts        MCP endpoint (mcp-handler, MCP SDK v2)
 app/r/[id]/             Report page with lead forms
 app/api/lead/route.ts   Lead capture, webhook, Resend email
 app/page.tsx            Minimal landing page with per-agent install
-lib/rules/              Rule catalog
+lib/rules/              Rule catalog; meta.ts holds levels and standards
 lib/detect.ts           Stack detection
 lib/checklist.ts        Checklist + agent instructions
 lib/mcp.ts              audit / submit_findings tools, audit prompt
 lib/report.ts           Scoring, verdict, chat summary
 lib/osv.ts              Dependency vulnerability lookup (OSV.dev, free)
+lib/registry.ts         Invented or rarely used package lookup (npm, pub.dev, free)
 lib/mask.ts             Secret masking for evidence snippets
 lib/store.ts            Upstash Redis (or in-memory for dev)
 ```

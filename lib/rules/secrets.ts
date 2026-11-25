@@ -8,12 +8,13 @@ export const SECRETS_RULES: Rule[] = [
     id: "MFS-SECRETS-01",
     category: "SECRETS",
     severity: "critical",
-    title: "Secret API keys shipped inside the app",
+    title: "Secret keys shipped in the app",
     check:
-      "Search all code, assets, bundled config and env files for secret (server-side) credentials. Publishable/public identifiers are fine: Stripe pk_ keys, Firebase apiKey in google-services.json or GoogleService-Info.plist, Supabase anon or sb_publishable_ keys, restricted Google Maps keys.",
+      "Search all code, assets, bundled config, everything compiled into the app from environment or build settings, and AI prompt text for secret (server-side) credentials. Publishable/public identifiers are fine: Stripe pk_ keys, Firebase apiKey in google-services.json or GoogleService-Info.plist, Supabase anon or sb_publishable_ keys, restricted Google Maps keys.",
     failIf:
-      "A secret or private credential appears in any file that ships with the app: Stripe sk_live_/rk_live_ keys, AWS secret access keys, OpenAI/Anthropic/other AI keys, GitHub/Slack/SendGrid/Twilio tokens, private keys (BEGIN PRIVATE KEY), database passwords or admin credentials.",
-    passIf: "Only publishable/public identifiers are present; all secrets live on a server.",
+      "A secret or private credential reaches the app: Stripe sk_live_/rk_live_ keys, AWS secret access keys, OpenAI/Anthropic/other AI keys, GitHub/Slack/SendGrid/Twilio tokens, private keys (BEGIN PRIVATE KEY), database passwords, Supabase service_role keys, webhook signing secrets or admin credentials. This includes secrets in source, assets, bundled .env files, build variables that ship (EXPO_PUBLIC_*, expo.extra, react-native-config, flutter_dotenv assets, --dart-define, buildConfigField, xcconfig or Info.plist values) and system prompts bundled in the app.",
+    passIf:
+      "Only publishable/public identifiers reach the app; all secrets live on a server.",
     variants: [
       {
         target: "any",
@@ -34,54 +35,13 @@ export const SECRETS_RULES: Rule[] = [
         ],
         hint: "Check test/mock files too only if they are bundled into release builds.",
       },
-    ],
-    founder:
-      "Anyone can download your app and pull these keys out in minutes. With a secret key they can act as your company: charge cards, read your data, or run up your cloud or AI bill.",
-    fix:
-      "Treat every exposed key as leaked: revoke and rotate it now. Move the operation that needs the key to your backend or a serverless function, and have the app call that endpoint with the user's session instead.",
-    refs: { masvs: ["MASVS-STORAGE-1"], maswe: ["MASWE-0004"], cwe: ["CWE-798"] },
-  },
-  {
-    id: "MFS-SECRETS-02",
-    category: "SECRETS",
-    severity: "high",
-    title: "AI provider called directly from the app",
-    check: "Find calls to AI model providers made from app code (not from your backend).",
-    failIf:
-      "The app calls an AI provider API directly with an API key, whatever the key's source (hardcoded, env var, remote config). Includes OpenAI, Anthropic, Google Gemini (AI Studio key), Groq, Mistral, OpenRouter, DeepSeek, Replicate.",
-    passIf:
-      "AI calls go through your own backend or serverless function that checks the user's session, or through Firebase AI Logic protected by App Check. Not applicable if the app uses no AI provider.",
-    variants: [
       {
         target: "any",
-        scope: "All app code",
-        lookIn: [G.js, G.dart, G.kotlinJava, G.swiftObjc],
-        searchFor: [
-          "api\\.openai\\.com|api\\.anthropic\\.com|generativelanguage\\.googleapis\\.com",
-          "api\\.groq\\.com|api\\.mistral\\.ai|openrouter\\.ai|api\\.deepseek\\.com|api\\.replicate\\.com",
-          "new OpenAI\\(|new Anthropic\\(|GoogleGenerativeAI\\(|GenerativeModel\\(",
-          "dangerouslyAllowBrowser",
-          "from ['\"]openai['\"]|@anthropic-ai/sdk|@google/generative-ai|dart_openai|google_generative_ai",
-        ],
+        scope: "AI prompts bundled in the app",
+        lookIn: [G.js, G.dart, G.kotlinJava, G.swiftObjc, "**/prompts/**", "**/*.{txt,md}"],
+        searchFor: ["systemPrompt|system_prompt|SYSTEM_PROMPT", "role:\\s*['\\\"]system"],
+        hint: "A secret written into a prompt that ships in the app counts as a shipped secret.",
       },
-    ],
-    founder:
-      "Your AI key travels inside the app. Someone can extract it and use your AI account for free. You pay the bill, which can reach thousands of dollars overnight.",
-    fix:
-      "Move every AI call behind a backend endpoint that checks the user's session and applies per-user rate limits. Rotate the current key.",
-    refs: { masvs: ["MASVS-STORAGE-1"], maswe: ["MASWE-0004"], cwe: ["CWE-798"] },
-  },
-  {
-    id: "MFS-SECRETS-03",
-    category: "SECRETS",
-    severity: "high",
-    title: "Secrets in build-time environment variables",
-    check:
-      "Inspect every mechanism that compiles environment or build values into the app, and check what each exposed variable holds.",
-    failIf:
-      "A variable exposed to the app bundle holds a secret: secret key, private token, database password, Supabase service_role key, admin credential, webhook signing secret.",
-    passIf: "Only public values are exposed (API base URLs, publishable keys, Supabase anon key, feature flags).",
-    variants: [
       {
         target: "expo",
         scope: "Expo",
@@ -117,9 +77,39 @@ export const SECRETS_RULES: Rule[] = [
       },
     ],
     founder:
-      "Environment variables feel private, but these ones are copied into the app file you publish. Anything secret in them is public.",
+      "Anyone can download your app and pull these keys out in minutes. With a secret key they can act as your company: charge cards, read your data, or run up your cloud or AI bill.",
     fix:
-      "Keep secrets only on the server. Rotate any secret that was ever exposed this way, and review the variable list before each release.",
+      "Treat every exposed key as leaked: revoke and rotate it now. Move the operation that needs it to your backend or a serverless function, have the app call that endpoint with the user's session, and keep only public values in build variables and prompts.",
+    refs: { masvs: ["MASVS-STORAGE-1"], maswe: ["MASWE-0004"], cwe: ["CWE-798"] },
+  },
+  {
+    id: "MFS-SECRETS-02",
+    category: "SECRETS",
+    severity: "high",
+    title: "AI provider called directly from the app",
+    check: "Find calls to AI model providers made from app code (not from your backend).",
+    failIf:
+      "The app calls an AI provider API directly with an API key, whatever the key's source (hardcoded, env var, remote config). Includes OpenAI, Anthropic, Google Gemini (AI Studio key), Groq, Mistral, OpenRouter, DeepSeek, Replicate.",
+    passIf:
+      "AI calls go through your own backend or serverless function that checks the user's session, or through Firebase AI Logic protected by App Check. Not applicable if the app uses no AI provider.",
+    variants: [
+      {
+        target: "any",
+        scope: "All app code",
+        lookIn: [G.js, G.dart, G.kotlinJava, G.swiftObjc],
+        searchFor: [
+          "api\\.openai\\.com|api\\.anthropic\\.com|generativelanguage\\.googleapis\\.com",
+          "api\\.groq\\.com|api\\.mistral\\.ai|openrouter\\.ai|api\\.deepseek\\.com|api\\.replicate\\.com",
+          "new OpenAI\\(|new Anthropic\\(|GoogleGenerativeAI\\(|GenerativeModel\\(",
+          "dangerouslyAllowBrowser",
+          "from ['\"]openai['\"]|@anthropic-ai/sdk|@google/generative-ai|dart_openai|google_generative_ai",
+        ],
+      },
+    ],
+    founder:
+      "Your AI key travels inside the app. Someone can extract it and use your AI account for free. You pay the bill, which can reach thousands of dollars overnight.",
+    fix:
+      "Move every AI call behind a backend endpoint that checks the user's session and applies per-user rate limits. Rotate the current key.",
     refs: { masvs: ["MASVS-STORAGE-1"], maswe: ["MASWE-0004"], cwe: ["CWE-798"] },
   },
   {
@@ -145,6 +135,31 @@ export const SECRETS_RULES: Rule[] = [
     fix:
       "Remove these files from the repo and its history, rotate the credentials, and store them in your CI secret store. Add the patterns to .gitignore.",
     refs: { cwe: ["CWE-522", "CWE-312"] },
+  },
+  {
+    id: "MFS-SECRETS-05",
+    category: "SECRETS",
+    severity: "high",
+    title: "AI tool config files committed with tokens",
+    check:
+      "Look for configuration files of AI coding tools committed to the repository and check whether they hold real credentials.",
+    failIf:
+      "An AI coding tool config file in the repo (.mcp.json, .cursor/mcp.json, .vscode/mcp.json, .claude/settings*.json, .codex/config.toml, Windsurf or Claude Desktop MCP configs) contains a real token, API key, password or Authorization header, not a placeholder or an environment-variable reference.",
+    passIf:
+      "No such files are committed, or they only reference environment variables, and .gitignore covers them.",
+    variants: [
+      {
+        target: "any",
+        scope: "Repository",
+        lookIn: [G.aiToolConfig],
+        searchFor: ["\\\"(env|headers)\\\"\\s*:", "token|api[_-]?key|secret|password|authorization|Bearer", "ghp_|github_pat_|sk-|xox[baprs]-|sb_secret_"],
+      },
+    ],
+    founder:
+      "Config files your AI coding tools use often hold tokens for GitHub, databases or cloud accounts. Committed to the repo, anyone with access can use them.",
+    fix:
+      "Revoke the exposed tokens, remove the files from the repo and its history, add them to .gitignore, and reference tokens through environment variables.",
+    refs: { cwe: ["CWE-798"] },
   },
 ];
 
@@ -225,13 +240,14 @@ export const BACKEND_RULES: Rule[] = [
   {
     id: "MFS-BACKEND-04",
     category: "BACKEND",
-    severity: "high",
-    title: "Access checks done only inside the app",
+    severity: "critical",
+    title: "Server doesn't verify ownership or permissions",
     check:
-      "Find features limited by role, plan or ownership (admin screens, premium features, other users' records) and determine where the limit is enforced.",
+      "Find features limited by role, plan or ownership (admin screens, premium features, other users' records), and every backend endpoint or function in the repo that reads or changes records by ID or accepts prices, plans, roles or user IDs from the app. Determine where each limit is enforced.",
     failIf:
-      "Access to privileged data or actions is decided only in app code: hiding an admin button, filtering other users' records on the device, unlocking premium with a local flag, with no matching enforcement in backend rules, policies or API middleware.",
-    passIf: "The backend enforces every permission; app-side checks only shape the UI. Not applicable if the app has no roles, plans or per-user data.",
+      "(a) Access to privileged data or actions is decided only in app code (hiding a button, filtering other users' records on the device, unlocking premium with a local flag) with no matching enforcement in backend rules, policies or API code; or (b) an endpoint or function in the repo returns or changes a record by ID without checking it belongs to the signed-in user; or (c) the server takes price, plan, role, credits or user ID from the request instead of deriving them on the server.",
+    passIf:
+      "The backend enforces every permission and ownership check, and computes prices, plans and roles itself; app-side checks only shape the UI. Not applicable if the app has no roles, plans or per-user data.",
     variants: [
       {
         target: "any",
@@ -239,11 +255,19 @@ export const BACKEND_RULES: Rule[] = [
         lookIn: [G.js, G.dart, G.kotlinJava, G.swiftObjc],
         searchFor: ["isAdmin|is_admin", "role\\s*===?\\s*['\"]", "isPremium|isPro|hasSubscription", "\\.eq\\(['\"]user_id", "\\.where\\(['\"](userId|uid|ownerId)"],
       },
+      {
+        target: "any",
+        scope: "Backend code in the repo",
+        lookIn: [G.backend],
+        searchFor: ["req\\.(params|query)\\.|params\\.id|findById\\(|\\.doc\\(|\\.eq\\(['\\\"]id", "req\\.body\\.(price|amount|role|plan|userId|user_id|credits|isAdmin)", "auth\\.uid\\(\\)|getUser\\(|verifyIdToken|currentUser"],
+        hint: "Supabase Edge Functions, Firebase Functions or an API folder in the same repo.",
+      },
     ],
     founder:
-      "Your app hides things from users who shouldn't see them, but the server still hands them over if asked directly. Hiding a button isn't security.",
-    fix: "Enforce every permission on the server (RLS, Firebase rules, API middleware). Treat the app as untrusted.",
-    refs: { masvs: ["MASVS-AUTH-1"], cwe: ["CWE-602"] },
+      "Your server hands over or changes data without checking who's asking: other users' records, admin features, or prices the app makes up.",
+    fix:
+      "On the server, check for every request that the signed-in user owns the record and may perform the action, and compute prices, plans and roles there. Treat the app as untrusted.",
+    refs: { masvs: ["MASVS-AUTH-1"], cwe: ["CWE-602", "CWE-639", "CWE-915"] },
   },
   {
     id: "MFS-BACKEND-05",
@@ -267,5 +291,30 @@ export const BACKEND_RULES: Rule[] = [
       "Paid features can be unlocked for free with common cheating tools, because the app takes its own word that a purchase happened.",
     fix: "Verify purchases on a server (or use RevenueCat) and read entitlements from there.",
     refs: { masvs: ["MASVS-AUTH-1"], cwe: ["CWE-602"] },
+  },
+  {
+    id: "MFS-BACKEND-08",
+    category: "BACKEND",
+    severity: "high",
+    title: "No rate limits or spend caps on paid services",
+    check:
+      "Find every paid service the app can trigger (AI models, SMS or OTP, email, maps or geocoding) and check what limits each call.",
+    failIf:
+      "A paid service can be triggered by the app with no per-user rate limit, quota or spend cap enforced on the server, so one user or script can call it without limit.",
+    passIf:
+      "Paid calls go through your backend with per-user rate limits or quotas (or Firebase App Check plus quotas), and provider budget caps are set. Not applicable if the app uses no paid services. If limits live in a provider dashboard you can't see, answer unable_to_check.",
+    variants: [
+      {
+        target: "any",
+        scope: "App code + backend",
+        lookIn: [G.js, G.dart, G.kotlinJava, G.swiftObjc, G.backend],
+        searchFor: ["openai|anthropic|generativelanguage|replicate|groq", "twilio|sendgrid|resend|messagebird|vonage|signInWithPhoneNumber", "maps\\.googleapis|geocod|places", "ratelimit|rateLimit|rate_limit|throttle|quota|limiter|App ?Check"],
+      },
+    ],
+    founder:
+      "AI, SMS or email features can be triggered without limit. One script can run up thousands of dollars overnight.",
+    fix:
+      "Put paid calls behind your backend with per-user rate limits and daily quotas, and set a budget cap with each provider.",
+    refs: { cwe: ["CWE-770"] },
   },
 ];

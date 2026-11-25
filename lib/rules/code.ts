@@ -82,12 +82,14 @@ export const CODE_RULES: Rule[] = [
   {
     id: "MFS-CODE-03",
     category: "CODE",
-    severity: "medium",
-    title: "Test shortcuts or backdoors left in",
-    check: "Look for hardcoded test accounts, master passwords/OTPs and auth bypasses.",
+    severity: "high",
+    title: "Test leftovers in the release app",
+    check:
+      "Look for test accounts, master passwords or OTPs, auth bypasses, admin/debug/test endpoints, and test or staging servers left in release code and config.",
     failIf:
-      "Hardcoded test credentials, master passwords or OTPs (e.g. '123456' accepted as a valid code), skip-login flags, or debug shortcuts that can be switched on in production (remote config, hidden gestures, not guarded by build type).",
-    passIf: "No such shortcuts, or they exist only behind compile-time debug guards that are stripped from release builds.",
+      "Any of: hardcoded test credentials, master passwords or OTPs (e.g. '123456' accepted as a valid code), skip-login flags or debug shortcuts that can be enabled in production; admin, debug, seed or test endpoints in the repo's backend that are reachable without admin authentication; or release builds that point at staging/dev servers or carry test-environment keys.",
+    passIf:
+      "No such leftovers, or they exist only behind compile-time debug guards stripped from release builds, and release config points only at production.",
     variants: [
       {
         target: "any",
@@ -95,10 +97,24 @@ export const CODE_RULES: Rule[] = [
         lookIn: [G.js, G.dart, G.kotlinJava, G.swiftObjc],
         searchFor: ["skipAuth|bypassAuth|bypassLogin|isTestUser|debugLogin|masterPassword", "test@|demo@|admin@", "['\"](123456|000000|111111|1234)['\"]", "__DEV__|kDebugMode|BuildConfig\\.DEBUG|#if DEBUG"],
       },
+      {
+        target: "any",
+        scope: "Backend code in the repo",
+        lookIn: [G.backend],
+        searchFor: ["['\\\"]/(admin|debug|test|internal|seed|reset)", "isAdmin|requireAdmin|adminOnly"],
+      },
+      {
+        target: "any",
+        scope: "Release config",
+        lookIn: [G.env, G.expoConfig, G.configFiles],
+        searchFor: ["staging|\\bdev\\.|sandbox|localhost|ngrok|test[_-]?key", "sk_test_|pk_test_"],
+      },
     ],
-    founder: "A shortcut built for testing can let anyone into any account if it reaches the live app.",
-    fix: "Remove test credentials and bypasses from the codebase; use separate test environments instead.",
-    refs: { masvs: ["MASVS-RESILIENCE-3"], maswe: ["MASWE-0061"], cwe: ["CWE-489", "CWE-798"] },
+    founder:
+      "Shortcuts built for testing (test logins, debug endpoints, staging servers) are still in the live app, where anyone can use them.",
+    fix:
+      "Remove test credentials, bypasses and debug endpoints from production code, protect admin routes with real authorisation, and make release builds point only at production servers.",
+    refs: { masvs: ["MASVS-RESILIENCE-3"], maswe: ["MASWE-0061"], cwe: ["CWE-489", "CWE-798", "CWE-285"] },
   },
   {
     id: "MFS-CODE-04",
@@ -142,10 +158,13 @@ export const CODE_RULES: Rule[] = [
     id: "MFS-CODE-05",
     category: "CODE",
     severity: "medium",
-    title: "Code downloaded at runtime without verification",
+    title:
+      "Code loaded after install isn't verified",
     check: "Find mechanisms that download and run code after install.",
-    failIf: "The app loads code from the network or writable storage without signature verification: custom JS bundle loaders, DexClassLoader/System.load from downloaded files, dlopen of downloaded libraries, evaluating remote scripts.",
-    passIf: "No dynamic code loading, or only official update services from your own account (EAS Update, CodePush, Shorebird) over HTTPS. Note in `note` whether code signing is enabled for these.",
+    failIf:
+      "The app loads code from the network or writable storage without signature verification (custom JS bundle loaders, DexClassLoader/System.load from downloaded files, dlopen of downloaded libraries, evaluating remote scripts); or an app handling money, health or identity data uses over-the-air updates (EAS Update, CodePush, Shorebird) without code signing.",
+    passIf:
+      "No dynamic code loading, or only official update services from your own account over HTTPS, with code signing enabled where the app handles money, health or identity data.",
     variants: [
       {
         target: "react-native",
@@ -172,18 +191,24 @@ export const CODE_RULES: Rule[] = [
         searchFor: ["dlopen\\(", "JSContext|evaluateScript\\("],
       },
     ],
-    founder: "Code the app downloads after install could be swapped for malicious code.",
-    fix: "Load code only through official, signed update services, and enable code signing where offered.",
+    founder:
+      "Code the app downloads after install could be swapped for malicious code before it reaches your users.",
+    fix:
+      "Load code only through official update services, and turn on code signing for over-the-air updates (EAS Update code signing, CodePush signing, Shorebird patch signing).",
     refs: { masvs: ["MASVS-CODE-4"], maswe: ["MASWE-0049"], cwe: ["CWE-494"] },
   },
   {
     id: "MFS-CODE-06",
     category: "CODE",
-    severity: "low",
-    title: "No way to force users onto a safe version",
-    check: "Look for a minimum-version check or forced update mechanism.",
-    failIf: "The app has no way to block or force-update outdated versions (no minimum version check against your API/remote config, no in-app update prompt).",
-    passIf: "A forced/minimum version mechanism exists (react-native-version-check, sp-react-native-in-app-updates, in_app_update, upgrader, AppUpdateManager, or a custom check).",
+    severity: "medium",
+    title:
+      "No way to force updates or switch features off remotely",
+    check:
+      "Look for a minimum-version check or forced update mechanism, and for a remote switch (remote config or feature flag) over AI features.",
+    failIf:
+      "The app has no way to block or force-update outdated versions; or it has AI features with no remote switch to turn them off without shipping a release.",
+    passIf:
+      "A forced/minimum version mechanism exists, and AI features (if any) sit behind a remote config or feature flag.",
     variants: [
       {
         target: "any",
@@ -192,9 +217,38 @@ export const CODE_RULES: Rule[] = [
         searchFor: ["minVersion|minimumVersion|min_version|forceUpdate|force_update", "react-native-version-check|in-app-updates|in_app_update|upgrader", "AppUpdateManager"],
       },
     ],
-    founder: "If a serious security bug is found, you can't stop people using the vulnerable version.",
-    fix: "Add a minimum supported version check (from your API or remote config) that blocks old versions and links to the store.",
+    founder:
+      "If a serious bug appears or AI costs spike, you can't stop it without waiting for every user to update.",
+    fix:
+      "Add a minimum supported version check from your API or remote config, and put AI features behind a remote flag you can switch off instantly.",
     refs: { masvs: ["MASVS-CODE-2"], maswe: ["MASWE-0043"], cwe: ["CWE-1104"] },
+  },
+  {
+    id: "MFS-CODE-07",
+    category: "CODE",
+    severity: "high",
+    title: "Fake, look-alike or unpinned packages",
+    check:
+      "Confirm a lockfile is committed for each package manager in use, and that no dependency comes from a URL or git without a pinned commit. Separately, the server checks every dependency you send in `dependencies` against the public registries (npm, pub.dev) for packages that don't exist or have almost no downloads, a sign of packages invented by AI tools or look-alikes.",
+    failIf:
+      "No lockfile is committed (package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lock, pubspec.lock, Podfile.lock, Package.resolved), or a dependency is pulled from a URL or git branch without a pinned commit. Registry findings are added by the server.",
+    passIf:
+      "Lockfiles are committed and every dependency is pinned. Answer pass if so; the server adds registry results on its own.",
+    variants: [
+      {
+        target: "any",
+        scope: "Repository",
+        lookIn: [G.lockfiles, "package.json", G.pubspec, "**/Podfile", "**/Package.swift"],
+        searchFor: ["\\\"(git\\+|github:|https?://)", "git:\\s*$|url:\\s*https?://", "branch:"],
+        hint: "Report the lockfile part only. Don't try to judge whether packages are real: the server does that from `dependencies`.",
+      },
+    ],
+    founder:
+      "AI coding tools sometimes invent package names, and attackers register those names with malware. Without a lockfile, each build can also pull different, possibly compromised, versions.",
+    fix:
+      "Remove packages that don't exist or that you can't verify, check each real package name against its official docs, commit your lockfiles, and install with npm ci or flutter pub get --enforce-lockfile.",
+    refs: { masvs: ["MASVS-CODE-3"], cwe: ["CWE-1357"] },
+    registryCheck: true,
   },
 ];
 
@@ -244,7 +298,8 @@ export const RESILIENCE_RULES: Rule[] = [
     severity: "low",
     title: "App code ships readable",
     check: "Check whether release builds minify/obfuscate code.",
-    failIf: "Android release has minify/R8 disabled; React Native ships a plain JS bundle (Hermes disabled); Flutter release builds don't use --obfuscate --split-debug-info.",
+    failIf:
+      "The app handles money, health or identity data, and release builds ship readable code: Android minify/R8 disabled, React Native without Hermes (plain JS bundle), or Flutter built without --obfuscate.",
     passIf: "R8/ProGuard on for release, Hermes enabled, Flutter builds obfuscated. iOS native Swift/ObjC needs no action.",
     variants: [
       {
@@ -375,19 +430,24 @@ export const PRIVACY_RULES: Rule[] = [
     category: "PRIVACY",
     severity: "medium",
     title: "Personal data sent to analytics or crash tools",
-    check: "Review analytics, crash-reporting and session-replay calls and the properties they send.",
-    failIf: "Email, phone, full name, precise location, health or financial details are sent to third-party analytics/crash/session-replay tools, or session replay records password/payment fields without masking.",
-    passIf: "Only pseudonymous IDs and non-sensitive event data are sent; replay masks sensitive fields. Not applicable if no such tools.",
+    check:
+      "Review analytics, crash-reporting, session-replay and AI provider calls, and the personal data each receives.",
+    failIf:
+      "Email, phone, full name, precise location, health or financial details are sent to third-party analytics, crash, session-replay tools or AI model providers without minimisation (and, for AI providers, without disclosure in the privacy policy), or session replay records password or payment fields without masking.",
+    passIf:
+      "Only pseudonymous IDs and non-sensitive data go to third parties, AI prompts carry only what the feature needs, and replay masks sensitive fields. Not applicable if no such services.",
     variants: [
       {
         target: "any",
         scope: "All app code",
         lookIn: [G.js, G.dart, G.kotlinJava, G.swiftObjc],
-        searchFor: ["logEvent\\(|setUserProperty|setUserProperties", "identify\\(|people\\.set|setUser\\(", "Mixpanel|Amplitude|Segment|PostHog|Sentry\\.setUser|Crashlytics|setCustomKey", "sessionReplay|SessionReplay|LogRocket|Smartlook|UXCam"],
+        searchFor: ["openai|anthropic|generativelanguage|GenerativeModel", "logEvent\\(|setUserProperty|setUserProperties", "identify\\(|people\\.set|setUser\\(", "Mixpanel|Amplitude|Segment|PostHog|Sentry\\.setUser|Crashlytics|setCustomKey", "sessionReplay|SessionReplay|LogRocket|Smartlook|UXCam"],
       },
     ],
-    founder: "Your users' personal details are copied to outside companies, which breaks privacy laws and store rules.",
-    fix: "Send internal user IDs instead of personal details, and mask sensitive fields in session replay.",
+    founder:
+      "Your users' personal details are copied to outside companies, including AI providers, which breaks privacy laws and store rules.",
+    fix:
+      "Send internal user IDs instead of personal details, strip personal data from AI prompts where the feature doesn't need it, disclose AI providers in your privacy policy, and mask sensitive fields in session replay.",
     refs: { masvs: ["MASVS-PRIVACY-2"], maswe: ["MASWE-0067"], cwe: ["CWE-359"] },
   },
   {

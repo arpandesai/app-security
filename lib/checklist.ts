@@ -20,6 +20,9 @@ export function planRules(profile: Profile): PlannedRule[] {
   return planned;
 }
 
+/** Split comma-separated glob lists without breaking brace sets such as *.{js,ts}. */
+export const splitGlobs = (g: string) => g.split(/,(?![^{]*\})/).map((x) => x.trim()).filter(Boolean);
+
 const list = (xs: string[]) => xs.map((x) => "`" + x + "`").join(", ");
 
 /** Compact markdown checklist the coding agent works through. */
@@ -33,6 +36,8 @@ export function renderChecklist(planned: PlannedRule[]): string {
     out.push(`\n## ${n}. ${cat.name} — ${items.length} check${items.length > 1 ? "s" : ""}`);
     for (const { rule, variants } of items) {
       out.push(`\n### ${rule.id} · ${rule.severity} · ${rule.title}`);
+      if (rule.highValueOnly)
+        out.push("Applies only to apps handling money, health or identity data. Otherwise answer not_applicable.");
       out.push(`Check: ${rule.check}`);
       if (!rule.serverEvaluated) {
         out.push(`Fail if: ${rule.failIf}`);
@@ -41,7 +46,7 @@ export function renderChecklist(planned: PlannedRule[]): string {
       out.push("Where:");
       for (const v of variants) {
         out.push(
-          `- ${v.scope}: look in ${list(v.lookIn.flatMap((g) => g.split(",")))}; search ${list(v.searchFor)}` +
+          `- ${v.scope}: look in ${list(v.lookIn.flatMap(splitGlobs))}; search ${list(v.searchFor)}` +
             (v.hint ? ` — ${v.hint}` : "")
         );
       }
@@ -65,7 +70,8 @@ export function agentInstructions(auditId: string, total: number): string {
     "   - unable_to_check: it can't be verified from source in this repo. Say why in `note`.",
     "   Mask live secrets in snippets: keep the first 6 and last 4 characters (e.g. sk_live_••••9f2a).",
     "3. After each category, call `submit_findings` with the audit_id and that category's results. One fail result per rule with all evidence locations (up to 10).",
-    "   For MFS-CODE-01 send the dependency list in `dependencies` instead of judging it yourself.",
+    "   Send the app's direct dependencies with exact resolved versions (from the lockfiles) in `dependencies` once, with any category.",
+    "   The server checks them for known vulnerabilities (MFS-CODE-01, don't judge it yourself) and against the public registries for packages that don't exist (added to MFS-CODE-07).",
     "4. When every check has a result, submit_findings returns the summary and the report link. Show that summary to the user exactly as returned.",
     "Tell the user briefly that the audit is running (it takes a few minutes); don't narrate each check.",
   ].join("\n");

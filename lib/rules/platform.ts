@@ -101,26 +101,6 @@ export const NETWORK_RULES: Rule[] = [
     fix: "Pin your API's public key with at least one backup pin, and plan pin rotation with your certificate renewals.",
     refs: { masvs: ["MASVS-NETWORK-2"], maswe: ["MASWE-0028"], cwe: ["CWE-295"] },
   },
-  {
-    id: "MFS-NETWORK-04",
-    category: "NETWORK",
-    severity: "medium",
-    title: "Sensitive data placed in URLs",
-    check: "Find URLs built with tokens, passwords, OTPs or personal data in the query string.",
-    failIf: "Tokens, passwords, OTPs, API keys, email addresses or phone numbers are sent as URL query parameters.",
-    passIf: "Such values travel in headers or the request body.",
-    variants: [
-      {
-        target: "any",
-        scope: "All app code",
-        lookIn: [G.js, G.dart, G.kotlinJava, G.swiftObjc],
-        searchFor: ["[?&](token|access_token|password|otp|apiKey|api_key|email|phone)=", "\\?.*\\$\\{.*(token|password)"],
-      },
-    ],
-    founder: "Logins and personal data end up in server logs, proxies and analytics, where they shouldn't be.",
-    fix: "Send secrets in an Authorization header or the request body, never in the URL.",
-    refs: { masvs: ["MASVS-NETWORK-1"], cwe: ["CWE-598"] },
-  },
 ];
 
 export const PLATFORM_RULES: Rule[] = [
@@ -129,10 +109,12 @@ export const PLATFORM_RULES: Rule[] = [
     category: "PLATFORM",
     severity: "high",
     title: "Android components open to other apps",
-    check: "Read the app's AndroidManifest.xml (the project's own, not library manifests) and list exported components.",
+    check:
+      "Read the app's own AndroidManifest.xml (not library manifests) for exported components, and review PendingIntents and intents that carry data.",
     failIf:
-      "An activity, service, broadcast receiver or content provider other than the launcher activity and intended deep-link entry points is exported (android:exported=\"true\", or an intent-filter on old targets) without a signature-level permission, and it exposes data or actions.",
-    passIf: "Only the launcher and deep-link activities are exported; everything else is exported=\"false\" or protected by a signature permission.",
+      "An activity, service, broadcast receiver or content provider other than the launcher activity and intended deep-link entry points is exported without a signature-level permission and exposes data or actions; or a PendingIntent wraps an implicit intent with FLAG_MUTABLE; or sensitive data is sent through implicit intents or unprotected broadcasts; or data from incoming intents is used without validation.",
+    passIf:
+      "Only the launcher and deep-link activities are exported; everything else is exported=\"false\" or signature-protected; PendingIntents are FLAG_IMMUTABLE with explicit targets.",
     variants: [
       {
         target: "android",
@@ -140,10 +122,18 @@ export const PLATFORM_RULES: Rule[] = [
         lookIn: [G.manifest],
         searchFor: ["android:exported=\"true\"", "<provider", "<receiver", "<service", "android:grantUriPermissions", "android:permission="],
       },
+      {
+        target: "android",
+        scope: "Android (Kotlin/Java)",
+        lookIn: [G.kotlinJava],
+        searchFor: ["PendingIntent\\.get", "FLAG_MUTABLE", "sendBroadcast\\(", "getStringExtra|getParcelableExtra|getSerializableExtra"],
+      },
     ],
-    founder: "Other apps on the phone can reach into yours and trigger actions or read data without the user knowing.",
-    fix: "Set android:exported=\"false\" on everything that doesn't need outside access, and protect the rest with signature permissions plus input validation.",
-    refs: { masvs: ["MASVS-PLATFORM-1"], maswe: ["MASWE-0018"], cwe: ["CWE-926"] },
+    founder:
+      "Other apps on the phone can reach into yours, trigger actions, read data or hijack messages it passes around, without the user knowing.",
+    fix:
+      "Set android:exported=\"false\" on everything that doesn't need outside access, protect the rest with signature permissions, use FLAG_IMMUTABLE with explicit intents, and validate incoming intent data.",
+    refs: { masvs: ["MASVS-PLATFORM-1"], maswe: ["MASWE-0018", "MASWE-0032"], cwe: ["CWE-926", "CWE-927"] },
   },
   {
     id: "MFS-PLATFORM-02",
@@ -233,10 +223,13 @@ export const PLATFORM_RULES: Rule[] = [
     id: "MFS-PLATFORM-04",
     category: "PLATFORM",
     severity: "medium",
-    title: "Password fields not masked",
-    check: "Find inputs for passwords, PINs, OTPs, CVV and card numbers.",
-    failIf: "Password, PIN or CVV fields are not masked (no secureTextEntry / obscureText / textPassword / SecureField), or allow keyboard learning (autocorrect/suggestions on).",
-    passIf: "Fields are masked with suggestions off, and declare autofill hints so password managers work.",
+    title: "Sensitive data exposed on screen",
+    check:
+      "Review password/PIN/OTP/card inputs, clipboard writes, notification text, and screens that show highly sensitive data.",
+    failIf:
+      "Any of: password, PIN or CVV fields not masked or allowing keyboard learning (autocorrect/suggestions on); passwords, OTPs, tokens, recovery phrases or full card/bank numbers copied to the general clipboard without expiry or sensitive flags; OTPs, balances, account numbers, medical details or message contents shown in lock-screen notifications without private visibility; or, in an app handling money, health or identity data, screens with full card numbers, statements, medical records, ID documents or recovery phrases that can be screenshotted or appear in the app switcher.",
+    passIf:
+      "Sensitive fields are masked with suggestions off and autofill hints set; secrets aren't copied, or copies expire and are marked sensitive; notifications stay generic; high-value apps block capture on sensitive screens.",
     variants: [
       {
         target: "react-native",
@@ -262,61 +255,18 @@ export const PLATFORM_RULES: Rule[] = [
         lookIn: [G.swiftObjc],
         searchFor: ["isSecureTextEntry|SecureField", "textContentType"],
       },
-    ],
-    founder: "Passwords show on screen or get learned by the keyboard, where other people can see or recover them.",
-    fix: "Mask sensitive fields, turn off suggestions/autocorrect on them, and add autofill hints for password managers.",
-    refs: { masvs: ["MASVS-PLATFORM-3"], maswe: ["MASWE-0036"], cwe: ["CWE-549"] },
-  },
-  {
-    id: "MFS-PLATFORM-05",
-    category: "PLATFORM",
-    severity: "low",
-    highValueOnly: true,
-    title: "Sensitive screens can be captured",
-    check: "Identify screens showing highly sensitive data and whether capture is blocked.",
-    failIf: "Screens show full card numbers, statements/balances, medical records, ID documents, OTPs or recovery phrases, and the app does nothing to block screenshots/recording or blur content in the app switcher.",
-    passIf: "Capture is blocked on those screens (FLAG_SECURE, expo-screen-capture, screen_protector) and content is hidden in the app switcher, or the app has no such screens.",
-    variants: [
       {
         target: "any",
         scope: "All app code",
         lookIn: [G.js, G.dart, G.kotlinJava, G.swiftObjc],
         searchFor: ["FLAG_SECURE", "preventScreenCapture|usePreventScreenCapture", "screen_protector|no_screenshot|FlutterWindowManager", "isCaptured|capturedDidChangeNotification", "WillResignActive"],
       },
-    ],
-    founder: "Screenshots, screen recordings and the app switcher can capture data you'd never want shared.",
-    fix: "Block capture on sensitive screens and blur the app's preview when it goes to the background.",
-    refs: { masvs: ["MASVS-PLATFORM-3"], maswe: ["MASWE-0038"], cwe: ["CWE-200"] },
-  },
-  {
-    id: "MFS-PLATFORM-06",
-    category: "PLATFORM",
-    severity: "medium",
-    title: "Sensitive data copied to the clipboard",
-    check: "Find code that writes to the system clipboard and what it copies.",
-    failIf: "Passwords, OTPs, tokens, recovery phrases or full card/bank numbers are copied to the general clipboard without expiry or sensitive-content flags.",
-    passIf: "Only non-sensitive values are copied, or sensitive copies use local-only + expiry (iOS) / EXTRA_IS_SENSITIVE (Android). Not applicable if no clipboard use.",
-    variants: [
       {
         target: "any",
         scope: "All app code",
         lookIn: [G.js, G.dart, G.kotlinJava, G.swiftObjc],
         searchFor: ["Clipboard\\.(setString|setStringAsync|setData)", "setPrimaryClip|ClipboardManager", "UIPasteboard"],
       },
-    ],
-    founder: "Copied passwords or codes stay on the clipboard, where other apps can read them.",
-    fix: "Avoid copying secrets; where needed, set expiry and mark the content sensitive.",
-    refs: { masvs: ["MASVS-PLATFORM-1"], maswe: ["MASWE-0030"], cwe: ["CWE-200"] },
-  },
-  {
-    id: "MFS-PLATFORM-07",
-    category: "PLATFORM",
-    severity: "medium",
-    title: "Sensitive data shown in notifications",
-    check: "Find local notification code and any notification text built in the app.",
-    failIf: "OTP codes, balances, account numbers, medical details or message contents appear in notifications visible on the lock screen, with no privacy setting.",
-    passIf: "Notifications are generic or use private/secret visibility and hidden previews. Not applicable if no notifications.",
-    variants: [
       {
         target: "any",
         scope: "All app code",
@@ -324,28 +274,10 @@ export const PLATFORM_RULES: Rule[] = [
         searchFor: ["scheduleNotificationAsync|localNotification|displayNotification", "flutter_local_notifications|\\.show\\(", "NotificationCompat\\.Builder|setVisibility", "UNMutableNotificationContent"],
       },
     ],
-    founder: "Anyone glancing at a locked phone can read private details from your notifications.",
-    fix: "Keep notification text generic and use private visibility for anything sensitive.",
-    refs: { masvs: ["MASVS-PLATFORM-3"], maswe: ["MASWE-0037"], cwe: ["CWE-200"] },
-  },
-  {
-    id: "MFS-PLATFORM-08",
-    category: "PLATFORM",
-    severity: "medium",
-    title: "Unsafe Android intents",
-    check: "Review PendingIntents and intents that carry data.",
-    failIf: "PendingIntent created with FLAG_MUTABLE around an implicit intent, sensitive data sent via implicit intents or unprotected broadcasts, or data from incoming intents used without validation.",
-    passIf: "PendingIntents are FLAG_IMMUTABLE with explicit targets; sensitive data uses explicit intents or permission-protected broadcasts.",
-    variants: [
-      {
-        target: "android",
-        scope: "Android (Kotlin/Java)",
-        lookIn: [G.kotlinJava],
-        searchFor: ["PendingIntent\\.get", "FLAG_MUTABLE", "sendBroadcast\\(", "getStringExtra|getParcelableExtra|getSerializableExtra"],
-      },
-    ],
-    founder: "Other apps can intercept or hijack messages your app passes around inside the phone.",
-    fix: "Use FLAG_IMMUTABLE with explicit intents, protect broadcasts with permissions, and validate incoming intent data.",
-    refs: { masvs: ["MASVS-PLATFORM-1"], maswe: ["MASWE-0032"], cwe: ["CWE-927"] },
+    founder:
+      "Passwords, codes and private details show up where others can see or copy them: on screen, in the keyboard's memory, the clipboard, the lock screen or screenshots.",
+    fix:
+      "Mask sensitive fields and turn off suggestions on them, avoid copying secrets (or set expiry and sensitive flags), keep notifications generic, and block capture on sensitive screens in high-value apps.",
+    refs: { masvs: ["MASVS-PLATFORM-3", "MASVS-PLATFORM-1"], maswe: ["MASWE-0036", "MASWE-0030", "MASWE-0037", "MASWE-0038"], cwe: ["CWE-549", "CWE-200"] },
   },
 ];

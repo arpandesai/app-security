@@ -23,7 +23,11 @@ export type Category =
   | "PLATFORM"
   | "CODE"
   | "PRIVACY"
-  | "RESILIENCE";
+  | "RESILIENCE"
+  | "AI";
+
+/** launch = every app before release; scale = once real users depend on it; trust = apps handling money, health or identity data. */
+export type Level = "launch" | "scale" | "trust";
 
 /** How the coding agent should check one rule for one stack. */
 export interface RuleVariant {
@@ -54,9 +58,15 @@ export interface Rule {
   /** Remediation guidance for the developer who fixes it. */
   fix: string;
   refs: { masvs?: string[]; maswe?: string[]; cwe?: string[] };
+  /** Maturity level. Set from rules/meta.ts. */
+  level?: Level;
+  /** Crosswalk to other public standards (OWASP Mobile Top 10, ASVS, API/LLM/Agentic Top 10). Set from rules/meta.ts. */
+  standards?: string[];
+  /** The server adds public registry results (npm, pub.dev) to the agent's result for this rule. */
+  registryCheck?: boolean;
   /** Evaluated on the server (e.g. dependency CVEs) rather than by the agent. */
   serverEvaluated?: boolean;
-  /** Only applies to apps handling money, health or identity data. */
+  /** Only applies to apps handling money, health or identity data (level "trust"). */
   highValueOnly?: boolean;
 }
 
@@ -109,6 +119,15 @@ export interface DependencyVuln {
   severity: Severity;
 }
 
+/** A dependency the public registry doesn't know, or that almost nobody uses. */
+export interface RegistryFlag {
+  ecosystem: string;
+  package: string;
+  version: string;
+  reason: "not_found" | "low_downloads";
+  downloads?: number;
+}
+
 export interface Finding {
   ruleId: string;
   title: string;
@@ -120,6 +139,8 @@ export interface Finding {
   evidence: Evidence[];
   note?: string;
   refs: Rule["refs"];
+  standards?: string[];
+  level?: Level;
 }
 
 export type Verdict = "Not safe to launch" | "Fix before launch" | "Safe to launch";
@@ -140,6 +161,8 @@ export interface Report {
   notApplicable: { ruleId: string; title: string; category: Category }[];
   dependencyVulns: DependencyVuln[];
   dependencyScan: "done" | "skipped" | "unavailable";
+  registryFlags?: RegistryFlag[];
+  registryScan?: "done" | "skipped" | "unavailable";
   checksRun: number;
   agent?: string;
 }

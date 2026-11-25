@@ -1,6 +1,7 @@
-import type { AuditSession, CheckResult, Finding, Report, Severity, Verdict } from "./types";
+import type { AuditSession, CheckResult, Evidence, Finding, Report, Severity, Verdict } from "./types";
 import { getRule, categoryName } from "./rules";
 import type { DepScan } from "./osv";
+import type { RegistryScan } from "./registry";
 import { BRAND } from "./config";
 
 export const SEV_ORDER: Severity[] = ["critical", "high", "medium", "low"];
@@ -19,7 +20,8 @@ export function buildReport(
   reportId: string,
   session: AuditSession,
   results: Record<string, CheckResult>,
-  dep: DepScan
+  dep: DepScan,
+  reg: RegistryScan = { status: "skipped", flags: [] }
 ): Report {
   const findings: Finding[] = [];
   const needsReview: Finding[] = [];
@@ -49,6 +51,8 @@ export function buildReport(
           })),
           note: dep.vulns.length > 15 ? `${dep.vulns.length - 15} more vulnerable packages not shown.` : undefined,
           refs: rule.refs,
+          standards: rule.standards,
+          level: rule.level,
         });
       } else if (dep.status === "done") {
         passed.push({ ruleId: id, title: rule.title, category: rule.category });
@@ -67,6 +71,8 @@ export function buildReport(
               ? r?.note || "No dependency list was provided by the coding agent."
               : "The vulnerability database could not be reached. Re-run the audit to complete this check.",
           refs: rule.refs,
+          standards: rule.standards,
+          level: rule.level,
         });
       }
       continue;
@@ -83,7 +89,37 @@ export function buildReport(
       evidence: r.evidence || [],
       note: r.note,
       refs: rule.refs,
+      standards: rule.standards,
+      level: rule.level,
     };
+
+    if (rule.registryCheck && reg.flags.length) {
+      // Merge the server's registry lookups with the agent's lockfile result.
+      const missing = reg.flags.filter((f) => f.reason === "not_found");
+      const regEvidence: Evidence[] = reg.flags.slice(0, 15).map((f) => ({
+        file: `${f.ecosystem}: ${f.package}@${f.version}`,
+        snippet:
+          f.reason === "not_found"
+            ? "Not found on the public registry. Possibly invented by an AI tool, a typo, or a private package."
+            : `Only ${f.downloads} downloads ${f.ecosystem === "npm" ? "last week" : "in 30 days"}. Confirm it is the package you meant.`,
+      }));
+      const agentFailed = r.status === "fail";
+      const severity: Severity = agentFailed || missing.length ? rule.severity : "medium";
+      const notes = [
+        agentFailed ? r.note : undefined,
+        missing.length ? "If a flagged package comes from your own private registry, you can ignore it." : undefined,
+        reg.flags.length > 15 ? `${reg.flags.length - 15} more flagged packages not shown.` : undefined,
+      ].filter(Boolean);
+      findings.push({
+        ...base,
+        severity,
+        status: "fail",
+        evidence: [...(agentFailed ? base.evidence : []), ...regEvidence],
+        note: notes.length ? notes.join(" ") : undefined,
+      });
+      continue;
+    }
+
     if (r.status === "fail") findings.push({ ...base, status: "fail" });
     else if (r.status === "unable_to_check") needsReview.push({ ...base, status: "unable_to_check" });
     else if (r.status === "pass") passed.push({ ruleId: id, title: rule.title, category: rule.category });
@@ -125,6 +161,8 @@ export function buildReport(
     notApplicable,
     dependencyVulns: dep.vulns,
     dependencyScan: dep.status,
+    registryFlags: reg.flags,
+    registryScan: reg.status,
     checksRun: session.ruleIds.length,
     agent: session.agent,
   };

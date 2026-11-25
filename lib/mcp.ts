@@ -6,6 +6,7 @@ import { planRules, renderChecklist, agentInstructions } from "./checklist";
 import { getRule, categoryName, RULESET_VERSION } from "./rules";
 import { cleanSnippet } from "./mask";
 import { scanDependencies } from "./osv";
+import { checkRegistries } from "./registry";
 import { buildReport, chatSummary } from "./report";
 import { kv, TTL, storageReady, STORAGE_NOT_READY } from "./store";
 import { BASE_URL, BRAND, newId } from "./config";
@@ -67,7 +68,9 @@ const submitInput = z.object({
     )
     .max(1000)
     .optional()
-    .describe("Direct dependencies with exact resolved versions, for MFS-CODE-01."),
+    .describe(
+      "Direct dependencies with exact resolved versions. The server checks them for known vulnerabilities (MFS-CODE-01) and against public registries (MFS-CODE-07)."
+    ),
 });
 
 const sessionKey = (id: string) => `audit:${id}`;
@@ -177,6 +180,8 @@ export function registerMobileFirstSecure(server: McpServer) {
       if (!storageReady) return errorText(STORAGE_NOT_READY);
       const session = await kv.getJSON<AuditSession>(sessionKey(args.audit_id));
       if (!session) return errorText(`Unknown or expired audit_id "${args.audit_id}". Call \`audit\` to start a new audit.`);
+      // Audits started on an older ruleset may list rules that were since merged or removed: drop those.
+      session.ruleIds = session.ruleIds.filter((id) => getRule(id));
 
       const inPlan = new Set(session.ruleIds);
       const problems: string[] = [];
@@ -243,8 +248,9 @@ export function registerMobileFirstSecure(server: McpServer) {
         }
       }
       if (!report) {
-        const dep = await scanDependencies(await loadDeps(session.id));
-        report = buildReport(reportId, session, results, dep);
+        const deps = await loadDeps(session.id);
+        const [dep, reg] = await Promise.all([scanDependencies(deps), checkRegistries(deps)]);
+        report = buildReport(reportId, session, results, dep, reg);
         await kv.setJSON(reportKey(reportId), report, TTL.report);
       }
 
