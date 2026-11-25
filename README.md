@@ -131,6 +131,8 @@ Every rule has a level:
 
 Two checks get help from the server. MFS-CODE-01 sends dependencies to OSV.dev for known vulnerabilities. MFS-CODE-07 adds a public registry lookup (npm, pub.dev) to the agent's lockfile result: packages that don't exist (often invented by AI coding tools) or that almost nobody downloads get flagged.
 
+**Framework page.** `/framework` is a static page (`public/framework.html`) with its image (`public/framework.png`), both built from the ruleset by `npm run framework` (needs Python 3; the image also needs Python Playwright, with `CHROME_PATH` pointing at Chrome if Playwright's own Chromium isn't installed). Rebuild them whenever rules change: the e2e test fails if the page's version doesn't match the live ruleset.
+
 Rules live in `lib/rules/`. To add one, add an object to the right file and give it a level and standards in `lib/rules/meta.ts`. Web-only rules go in `WEB_RULES` in `lib/rules/web.ts` with `platforms: ["web"]`; web support for an existing rule goes in `WEB_SUPPORT`. The catalog refuses to load if a rule ID is duplicated, a rule has no meta entry, or a title contains "and" or "&". Platform thresholds (Android target SDK 36, which Google Play has required since 31 Aug 2026; min SDK 24; iOS 15) are in `lib/rules/globs.ts`. Update them each year.
 
 ## Local development
