@@ -1,7 +1,8 @@
 import { Redis } from "@upstash/redis";
 
 /**
- * Tiny storage layer. Uses Upstash Redis (Vercel Marketplace) when configured,
+ * Tiny storage layer. A ttlSec of 0 means the key never expires (used for accounts).
+ * Uses Upstash Redis (Vercel Marketplace) when configured,
  * otherwise an in-memory store that only works for local development.
  */
 interface KV {
@@ -12,6 +13,7 @@ interface KV {
   hset(key: string, field: string, value: string, ttlSec: number): Promise<void>;
   hgetall(key: string): Promise<Record<string, string>>;
   rpush(key: string, value: string): Promise<void>;
+  del(key: string): Promise<void>;
 }
 
 /**
@@ -43,17 +45,19 @@ function upstash(): KV {
       return v ? JSON.parse(v) : null;
     },
     async setJSON(key, value, ttl) {
-      await r.set(key, JSON.stringify(value), { ex: ttl });
+      if (ttl > 0) await r.set(key, JSON.stringify(value), { ex: ttl });
+      else await r.set(key, JSON.stringify(value));
     },
     async setNX(key, value, ttl) {
-      return (await r.set(key, value, { ex: ttl, nx: true })) === "OK";
+      const res = ttl > 0 ? await r.set(key, value, { ex: ttl, nx: true }) : await r.set(key, value, { nx: true });
+      return res === "OK";
     },
     async get(key) {
       return (await r.get<string>(key)) ?? null;
     },
     async hset(key, field, value, ttl) {
       await r.hset(key, { [field]: value });
-      await r.expire(key, ttl);
+      if (ttl > 0) await r.expire(key, ttl);
     },
     async hgetall(key) {
       // With automaticDeserialization off, Upstash returns HGETALL as a flat [field, value, ...] array.
@@ -68,6 +72,9 @@ function upstash(): KV {
     },
     async rpush(key, value) {
       await r.rpush(key, value);
+    },
+    async del(key) {
+      await r.del(key);
     },
   };
 }
@@ -92,11 +99,11 @@ function memory(): KV {
       return e ? JSON.parse(e.v) : null;
     },
     async setJSON(key, value, ttl) {
-      mem.set(key, { v: JSON.stringify(value), exp: Date.now() + ttl * 1000 });
+      mem.set(key, { v: JSON.stringify(value), exp: ttl > 0 ? Date.now() + ttl * 1000 : 0 });
     },
     async setNX(key, value, ttl) {
       if (live(key)) return false;
-      mem.set(key, { v: value, exp: Date.now() + ttl * 1000 });
+      mem.set(key, { v: value, exp: ttl > 0 ? Date.now() + ttl * 1000 : 0 });
       return true;
     },
     async get(key) {
@@ -105,7 +112,7 @@ function memory(): KV {
     async hset(key, field, value, ttl) {
       const e = live(key) ?? { v: {}, exp: 0 };
       e.v[field] = value;
-      e.exp = Date.now() + ttl * 1000;
+      e.exp = ttl > 0 ? Date.now() + ttl * 1000 : 0;
       mem.set(key, e);
     },
     async hgetall(key) {
@@ -115,6 +122,9 @@ function memory(): KV {
       const e = live(key) ?? { v: [], exp: 0 };
       e.v.push(value);
       mem.set(key, e);
+    },
+    async del(key) {
+      mem.delete(key);
     },
   };
 }

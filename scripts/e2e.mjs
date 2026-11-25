@@ -75,9 +75,49 @@ const TRUTH = {
 
 const pkg = JSON.parse(readFileSync(join(FIXTURE, "package.json"), "utf8"));
 
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+const post = (path, body) =>
+  fetch(`${BASE}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+
+// Sign up with an emailed code: name, company, email → code → session cookie → dashboard with the personal MCP URL.
+const MAIL = process.env.MAIL_URL || "http://localhost:8787"; // Resend stand-in in scripts/mock-osv.mjs
+const codeFor = async (to) => (await (await fetch(`${MAIL}/_mail?to=${encodeURIComponent(to)}`)).json()).subject.match(/^(\d{6})/)[1];
+const email = `founder+${Date.now()}@example.com`;
+let r = await post("/api/auth/start", { mode: "signup", name: "Priya Founder", company: "PayFlow Inc", email });
+assert.equal(r.status, 200, await r.clone().text());
+assert.equal((await post("/api/auth/start", { mode: "signup", name: "Priya Founder", email })).status, 429, "resend within 30s is throttled");
+const code = await codeFor(email);
+assert.equal((await post("/api/auth/verify", { email, code: code === "000000" ? "111111" : "000000" })).status, 400);
+r = await post("/api/auth/verify", { email, code });
+assert.equal(r.status, 200);
+const cookie = r.headers.get("set-cookie").split(";")[0];
+assert.match(r.headers.get("set-cookie"), /HttpOnly/);
+assert.equal((await post("/api/auth/verify", { email, code })).status, 400, "a code works once");
+const dashFetch = (c = cookie) => fetch(`${BASE}/dashboard`, { headers: c ? { cookie: c } : {}, redirect: "manual" });
+const dash0 = await (await dashFetch()).text();
+const token = dash0.match(/\/mcp\/(mfs_[A-Za-z0-9_-]{32})/)[1];
+assert.equal((await dashFetch(null)).status, 307, "dashboard needs a session");
+assert.equal((await post("/api/auth/start", { mode: "login", email: "nobody@example.com" })).status, 404);
+assert.equal((await post("/api/auth/start", { mode: "signup", name: "", email: "x@example.com" })).status, 400);
+assert.equal((await post("/api/auth/start", { mode: "signup", name: "Bot", email: "bot@example.com", website: "spam" })).status, 400);
+ok("sign-up by emailed code; wrong, reused and throttled codes rejected; dashboard needs a session");
+
+// The shared URL still connects, but asks for a personal URL instead of starting an audit.
+const anon = new Client({ name: "e2e-anon", version: "1.0.0" });
+await anon.connect(new StreamableHTTPClientTransport(new URL(`${BASE}/mcp`)));
+const anonOut = (await anon.callTool({ name: "audit", arguments: { project_files: ["package.json"] } })).content[0].text;
+assert.match(anonOut, /personal MCP URL/);
+await anon.close();
+const bad = new Client({ name: "e2e-bad", version: "1.0.0" });
+await bad.connect(new StreamableHTTPClientTransport(new URL(`${BASE}/mcp/mfs_${"x".repeat(32)}`)));
+assert.match((await bad.callTool({ name: "audit", arguments: { project_files: ["package.json"] } })).content[0].text, /isn't recognised/);
+await bad.close();
+ok("shared URL and unknown URLs point users to sign up");
+
+const MCP = `${BASE}/mcp/${token}`;
 const client = new Client({ name: "e2e-agent", version: "1.0.0" });
-await client.connect(new StreamableHTTPClientTransport(new URL(`${BASE}/mcp`)));
-console.log("Connected to", `${BASE}/mcp`);
+await client.connect(new StreamableHTTPClientTransport(new URL(MCP)));
+console.log("Connected to", MCP.replace(token, "mfs_…"));
 
 const tools = (await client.listTools()).tools.map((t) => t.name).sort();
 assert.deepEqual(tools, ["audit", "submit_findings"]);
@@ -120,7 +160,7 @@ assert.match(checklist, /Applies only to apps handling money, health or identity
 ok("45 checks incl. AI Features; globs intact; trust-level checks marked");
 
 // Validation: bad submissions are rejected
-const bad = textOf(
+const rejected = textOf(
   await client.callTool({
     name: "submit_findings",
     arguments: {
@@ -133,10 +173,10 @@ const bad = textOf(
     },
   })
 );
-assert.match(bad, /Saved 0 results/);
-assert.match(bad, /MFS-STORAGE-01: a fail needs evidence/);
-assert.match(bad, /MFS-FAKE-99: not part of this audit/);
-assert.match(bad, /MFS-BACKEND-02: unable_to_check needs a note/);
+assert.match(rejected, /Saved 0 results/);
+assert.match(rejected, /MFS-STORAGE-01: a fail needs evidence/);
+assert.match(rejected, /MFS-FAKE-99: not part of this audit/);
+assert.match(rejected, /MFS-BACKEND-02: unable_to_check needs a note/);
 ok("invalid results rejected with reasons");
 
 // Submit category by category, like an agent would
@@ -191,6 +231,36 @@ const badLead = await fetch(`${BASE}/api/lead`, {
 assert.equal(badLead.status, 400);
 ok("lead capture works; bad email rejected");
 
+// Dashboard lists the report; admin can see the customer and switch the URL off and on.
+const dash = await (await dashFetch()).text();
+assert.match(dash, /Hi Priya/);
+assert.ok(dash.includes(`/r/${reportId}`), "dashboard links the report");
+assert.ok(dash.includes(`/mcp/${token}`), "dashboard shows the personal MCP URL");
+ok("dashboard shows the personal URL and the report");
+
+if (ADMIN_PASSWORD) {
+  const auth = { authorization: "Basic " + Buffer.from(`admin:${ADMIN_PASSWORD}`).toString("base64") };
+  assert.equal((await fetch(`${BASE}/admin`)).status, 401);
+  assert.equal((await fetch(`${BASE}/admin`, { headers: { authorization: "Basic " + Buffer.from("admin:wrong").toString("base64") } })).status, 401);
+  const admin = await (await fetch(`${BASE}/admin`, { headers: auth })).text();
+  assert.ok(admin.includes(email) && admin.includes("PayFlow Inc"));
+  const toggle = (id, action) =>
+    fetch(`${BASE}/api/admin/accounts`, { method: "POST", headers: { ...auth, accept: "application/json" }, body: new URLSearchParams({ id, action }) });
+  // Find this customer's account ID from the row that holds their email.
+  const row = admin.slice(admin.indexOf(email));
+  const id = row.match(/name="id" value="(acc_[^"]+)"/)[1];
+  assert.ok((await (await fetch(`${BASE}/admin/${id}`, { headers: auth })).text()).includes(`/r/${reportId}`), "admin can view the customer's audits");
+  assert.equal((await toggle(id, "disable")).status, 200);
+  const off = textOf(await client.callTool({ name: "audit", arguments: { project_files: projectFiles } }));
+  assert.match(off, /switched off/);
+  assert.match(await (await dashFetch()).text(), /Account switched off/);
+  assert.equal((await toggle(id, "enable")).status, 200);
+  assert.match(textOf(await client.callTool({ name: "audit", arguments: { project_files: projectFiles, dependency_names: Object.keys(pkg.dependencies) } })), /Audit ID/);
+  ok("admin is password-protected, lists customers, switches a URL off and on");
+} else {
+  console.log("  - admin checks skipped (set ADMIN_PASSWORD to run them)");
+}
+
 // Parallel submissions (agents that check categories concurrently) must all land on the same audit
 const p = textOf(
   await client.callTool({
@@ -226,6 +296,11 @@ ok(`health: storage=${health.storage}`);
 const missing = await fetch(`${BASE}/r/AAAAAAAAAAAAAAAAAAAAAA`);
 assert.match(await missing.text(), /Report not found/);
 ok("unknown report shows not-found page");
+
+const out = await fetch(`${BASE}/api/auth/logout`, { method: "POST", headers: { cookie }, redirect: "manual" });
+assert.equal(out.status, 303);
+assert.equal((await dashFetch()).status, 307, "signed-out session no longer opens the dashboard");
+ok("sign-out ends the session");
 
 await client.close();
 console.log("\nAll checks passed. Report:", url);

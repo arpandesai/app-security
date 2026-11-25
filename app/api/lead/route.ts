@@ -2,20 +2,9 @@ import type { Report } from "@/lib/types";
 import { kv } from "@/lib/store";
 import { reportKey, reportUrl } from "@/lib/mcp";
 import { BRAND } from "@/lib/config";
+import { sendEmail } from "@/lib/email";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-async function sendEmail(to: string, subject: string, html: string) {
-  const key = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM; // e.g. "MobileFirst Secure <secure@mobilefirst.in>"
-  if (!key || !from) return false;
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-    body: JSON.stringify({ from, to, subject, html }),
-  });
-  return res.ok;
-}
 
 export async function POST(req: Request) {
   let body: any;

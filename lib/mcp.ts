@@ -9,7 +9,8 @@ import { scanDependencies } from "./osv";
 import { checkRegistries } from "./registry";
 import { buildReport, chatSummary } from "./report";
 import { kv, TTL, storageReady, STORAGE_NOT_READY } from "./store";
-import { BASE_URL, BRAND, newId } from "./config";
+import { BASE_URL, BRAND, SUPPORT_EMAIL, newId } from "./config";
+import { addAccountReport, type Access } from "./accounts";
 
 export const SERVER_INSTRUCTIONS = `${BRAND} runs a read-only security audit of a mobile app's source code (React Native/Expo, Flutter, native Android, native iOS). The audit runs entirely inside your coding agent on the user's machine: this server supplies the rules and writes the report.
 When the user says "audit", asks for a security audit or check, or asks whether their app is safe to launch, call the \`audit\` tool and follow its instructions until \`submit_findings\` returns the report link.
@@ -102,7 +103,29 @@ function remainingByCategory(session: AuditSession, answered: Set<string>) {
   return { open, text: [...groups].map(([c, ids]) => `- ${c}: ${ids.join(", ")}`).join("\n") };
 }
 
-export function registerMobileFirstSecure(server: McpServer) {
+/** What the agent shows when the caller can't start an audit with the URL they connected with. */
+export function accessMessage(access: Access): string | null {
+  const contact = SUPPORT_EMAIL ? ` at ${SUPPORT_EMAIL}` : "";
+  switch (access.status) {
+    case "ok":
+      return null;
+    case "missing":
+      return (
+        `${BRAND} now gives every user a free personal MCP URL, and your reports are saved to your own dashboard. ` +
+        `Get yours at ${BASE_URL} (name and email, under a minute), replace this server's URL in your settings with it, then run the audit again.\n\n` +
+        "Show this message to the user exactly as written."
+      );
+    case "invalid":
+      return (
+        `This ${BRAND} URL isn't recognised. Copy your personal MCP URL from your dashboard, or get a new one at ${BASE_URL}.\n\n` +
+        "Show this message to the user exactly as written."
+      );
+    case "disabled":
+      return `This ${BRAND} URL has been switched off. Contact MobileFirst${contact} to turn it back on.\n\nShow this message to the user exactly as written.`;
+  }
+}
+
+export function registerMobileFirstSecure(server: McpServer, access: Access = { status: "missing" }) {
   server.registerPrompt(
     "audit",
     { title: `${BRAND}: audit this app`, description: "Run a read-only security audit of the mobile app in this project." },
@@ -133,6 +156,8 @@ export function registerMobileFirstSecure(server: McpServer) {
     },
     async (args) => {
       if (!storageReady) return errorText(STORAGE_NOT_READY);
+      const blocked = accessMessage(access);
+      if (blocked) return text(blocked);
       const profile = detectProfile(args.project_files, args.dependency_names);
       if (!profile) {
         return text(
@@ -150,6 +175,7 @@ export function registerMobileFirstSecure(server: McpServer) {
         ruleIds: planned.map((p) => p.rule.id),
         agent: args.agent?.trim(),
         rulesetVersion: RULESET_VERSION,
+        accountId: access.status === "ok" ? access.account.id : undefined,
       };
       await kv.setJSON(sessionKey(session.id), session, TTL.audit);
 
@@ -252,6 +278,7 @@ export function registerMobileFirstSecure(server: McpServer) {
         const [dep, reg] = await Promise.all([scanDependencies(deps), checkRegistries(deps)]);
         report = buildReport(reportId, session, results, dep, reg);
         await kv.setJSON(reportKey(reportId), report, TTL.report);
+        if (session.accountId) await addAccountReport(session.accountId, report);
       }
 
       const url = reportUrl(reportId);

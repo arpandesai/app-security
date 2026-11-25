@@ -1,5 +1,5 @@
-import { MCP_URL, BRAND, SLOGAN } from "@/lib/config";
-import { InstallTabs } from "./install-tabs";
+import { BRAND, SLOGAN } from "@/lib/config";
+import { AuthForm } from "./auth-form";
 
 export default function Home() {
   return (
@@ -8,6 +8,9 @@ export default function Home() {
         <span className="logo">
           MobileFirst <span>Secure</span>
         </span>
+        <a className="muted" href="/login">
+          Sign in
+        </a>
       </div>
 
       <section className="hero-landing">
@@ -19,7 +22,10 @@ export default function Home() {
       </section>
 
       <section className="card">
-        <InstallTabs url={MCP_URL} />
+        <AuthForm mode="signup" />
+        <p className="muted" style={{ margin: "12px 0 0" }}>
+          Free. Works with Claude Code, Claude, Codex, ChatGPT, Cursor and VS Code.
+        </p>
       </section>
 
       <footer className="foot">

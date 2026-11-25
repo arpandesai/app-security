@@ -108,6 +108,8 @@ export interface AuditSession {
   ruleIds: string[];
   agent?: string;
   rulesetVersion: string;
+  /** The account whose personal MCP URL started this audit. */
+  accountId?: string;
 }
 
 export interface DependencyVuln {
