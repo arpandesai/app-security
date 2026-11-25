@@ -8,7 +8,7 @@ export const CSS = `
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
-body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.55;-webkit-font-smoothing:antialiased}
+body{font-family:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.55;-webkit-font-smoothing:antialiased}
 a{color:var(--brand)}
 code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}
 .wrap{max-width:880px;margin:0 auto;padding:0 20px}
@@ -105,6 +105,80 @@ ul.audits li:first-child{border-top:0;padding-top:0}
 .tbl .actions{display:flex;gap:12px;align-items:center}
 .tbl form{margin:0}
 .s-ok{background:var(--ok-bg);color:var(--ok)}
+
+/* ---------- Landing page ---------- */
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.lp{--lp-ink:#0e1a2f;--lp-ink2:#3b4558;--lp-ink3:#5d6779;--lp-line:#d5dce8;--lp-paper:#f5f7fb;--lp-blue:#1a56db;--lp-blue-ink:#0b3aa4;
+  max-width:1180px;margin:0 auto;padding:0 24px;color:var(--lp-ink)}
+.lp-top{display:flex;justify-content:space-between;align-items:center;padding:22px 0}
+.lp-logo{font-family:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;font-weight:700;font-size:18px;letter-spacing:-.01em}
+.lp-logo span{color:var(--lp-blue)}
+.lp-signin{font-size:15px;font-weight:500;color:var(--lp-ink2);text-decoration:none;padding:8px 2px}
+.lp-signin:hover{color:var(--lp-ink)}
+.lp-hero{display:grid;gap:44px;padding:36px 0 72px;align-items:center}
+@media(min-width:980px){.lp-hero{grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:64px;padding:56px 0 96px}}
+.lp h1{font-family:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;font-weight:700;font-size:clamp(38px,5.4vw,64px);line-height:1.03;
+  letter-spacing:-.035em;margin:0 0 20px;text-wrap:balance}
+.lp-sub{font-size:19px;line-height:1.55;color:var(--lp-ink2);margin:0 0 28px;max-width:33em}
+.lp-assure{font-size:14.5px;color:var(--lp-ink2);margin:14px 0 0}
+.lp-tools{font-size:14.5px;color:var(--lp-ink3);margin:6px 0 0}
+
+/* email + code form (landing and /login) */
+.auth{max-width:560px}
+.auth-row{display:flex;gap:10px}
+.auth-email,.auth-code{flex:1;min-width:0;height:56px;padding:0 18px;font:inherit;font-size:17px;color:var(--ink);background:#fff;
+  border:1.5px solid #c3ccdc;border-radius:12px;outline:none;transition:border-color .15s}
+.auth-email:focus,.auth-code:focus{border-color:var(--brand);box-shadow:0 0 0 4px #1a56db26}
+.auth-code{flex:0 1 220px;font-size:26px;letter-spacing:.32em;font-variant-numeric:tabular-nums;text-align:center;padding:0 10px}
+.btn.auth-btn{height:56px;padding:0 24px;border-radius:12px;font-size:17px;white-space:nowrap}
+.btn:focus-visible,.linkbtn:focus-visible,.lp a:focus-visible{outline:3px solid #7aa2ff;outline-offset:2px}
+.auth-lead{font-size:16px;color:var(--ink-2);margin:0 0 12px}
+.auth-err{color:var(--crit);font-size:15px;margin:10px 0 0}
+.auth-small{font-size:14px;color:var(--ink-3);margin:12px 0 0}
+@media(max-width:560px){.auth-row{flex-direction:column}.auth-email,.auth-code{flex:none;width:100%}.btn.auth-btn{width:100%}}
+
+/* the sample audit */
+.lp-demo{margin:0}
+.term{background:#0e1a2f;border-radius:18px;overflow:hidden;box-shadow:0 40px 80px -32px rgba(14,26,47,.55),0 0 0 1px rgba(14,26,47,.06)}
+.term-bar{display:flex;justify-content:space-between;align-items:center;padding:13px 18px;border-bottom:1px solid #22314f}
+.term-title{font-size:13px;color:#9aa6bd;font-weight:500}
+.term-tag{font-size:12px;color:#b8c2d6;background:#1d2a47;border-radius:999px;padding:3px 10px}
+.term-body{padding:20px 22px 24px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px;line-height:1.75;min-height:420px}
+.tl{margin:0;color:#c4cde0;opacity:0;animation:tl-in .28s ease-out forwards;overflow-wrap:anywhere}
+.tl-gap{margin-top:14px}
+.tl-cmd{color:#7aa2ff;font-weight:600}
+.tl-dim{color:#8e9ab3}
+.tl-strong{color:#eef1f6;font-weight:600}
+.tl-verdict{font-family:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;font-weight:700;font-size:26px;line-height:1.25;color:#f97066;letter-spacing:-.01em;margin:2px 0}
+.tl-crit{color:#fda29b}
+.tl-at{color:#7d89a3;margin-left:10px;white-space:nowrap}
+.tl-link{color:#9db8ff}
+@keyframes tl-in{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.tl{opacity:1;animation:none}}
+@media(max-width:560px){.term-body{font-size:12.5px;padding:16px 16px 20px;min-height:0}.tl-verdict{font-size:22px}}
+
+/* how it works */
+.lp-how{border-top:1px solid var(--lp-line);padding:56px 0 8px}
+.lp h2{font-family:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;font-weight:600;font-size:28px;letter-spacing:-.02em;margin:0 0 28px}
+.lp-steps{list-style:none;margin:0;padding:0;display:grid;gap:28px;counter-reset:step}
+@media(min-width:820px){.lp-steps{grid-template-columns:repeat(3,minmax(0,1fr));gap:40px}}
+.lp-steps li{counter-increment:step;position:relative;padding-top:58px}
+.lp-steps li::before{content:counter(step);position:absolute;top:0;left:0;font-family:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;
+  font-weight:700;font-size:44px;line-height:1;color:var(--lp-blue)}
+.lp-steps h3{font-size:19px;margin:0 0 6px;letter-spacing:-.01em}
+.lp-steps p{margin:0;color:var(--lp-ink2);font-size:16px;line-height:1.55;max-width:30em}
+
+/* proof + second CTA */
+.lp-proof{padding:64px 0 48px;max-width:760px}
+.lp-stat{font-family:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;font-weight:600;font-size:clamp(22px,2.6vw,28px);line-height:1.3;
+  letter-spacing:-.015em;margin:0 0 16px}
+.lp-stat sup{font-size:.5em;margin-left:2px}
+.lp-trust{font-size:16.5px;line-height:1.6;color:var(--lp-ink2);margin:0 0 26px}
+.btn.lp-again{padding:15px 24px;border-radius:12px;font-size:17px}
+.lp-foot{border-top:1px solid var(--lp-line);padding:24px 0 48px;font-size:13px;color:var(--lp-ink3)}
+.lp-foot p{margin:4px 0}
+.lp-src a{color:inherit}
+
 @media print{
   body{background:#fff}
   .noprint{display:none!important}

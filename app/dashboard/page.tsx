@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { currentAccount } from "@/lib/auth";
 import { BRAND, SLOGAN, SUPPORT_EMAIL } from "@/lib/config";
 import { AccountView } from "../account-view";
+import { listAccountReports } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: `Dashboard — ${BRAND}`, robots: { index: false, follow: false } };
@@ -10,6 +11,7 @@ export const metadata: Metadata = { title: `Dashboard — ${BRAND}`, robots: { i
 export default async function Dashboard() {
   const account = await currentAccount();
   if (!account) redirect("/login");
+  const reportCount = (await listAccountReports(account.id)).length;
 
   return (
     <main className="wrap">
@@ -35,9 +37,18 @@ export default async function Dashboard() {
       ) : (
         <>
           <section className="card">
-            <h1 className="dash-h">{`Hi ${account.name.split(" ")[0]}`}</h1>
+            <h1 className="dash-h">{account.name ? `Hi ${account.name.split(" ")[0]}` : "You're in"}</h1>
             <p className="muted" style={{ margin: 0 }}>
-              Connect your coding agent once, then type <b>audit</b> in any app project. Every report shows up here.
+              {reportCount === 0 ? (
+                <>
+                  Two steps to your first report: add your link to your coding agent below (about a minute), then type <b>audit</b> in your
+                  app's project.
+                </>
+              ) : (
+                <>
+                  Type <b>audit</b> in any app project to run another check. Every report shows up here.
+                </>
+              )}
             </p>
           </section>
           <AccountView account={account} />

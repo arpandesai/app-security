@@ -22,7 +22,7 @@ export default async function AdminCustomer({ params }: { params: Promise<{ id: 
       ) : (
         <>
           <section className="card">
-            <h1 className="dash-h">{account.name}</h1>
+            <h1 className="dash-h">{account.name || account.email}</h1>
             <p className="muted" style={{ margin: 0 }}>
               {[account.company, account.email, account.disabled ? "Switched off" : "Active"].filter(Boolean).join(" · ")}
             </p>

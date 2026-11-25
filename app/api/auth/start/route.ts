@@ -4,7 +4,7 @@ import { emailReady } from "@/lib/email";
 import { storageReady, STORAGE_NOT_READY } from "@/lib/store";
 
 // Step 1 of sign-up or sign-in: email a 6-digit code.
-// Sign-up sends name + company + email; sign-in sends email only.
+// Sign-up sends email (name and company are optional); sign-in sends email only.
 export async function POST(req: Request) {
   if (!storageReady) return Response.json({ error: STORAGE_NOT_READY }, { status: 503 });
   if (!emailReady()) return Response.json({ error: "Sign-in emails aren't set up yet. Please try again later." }, { status: 503 });
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   if (signup) {
     const name = String(body?.name || "").trim();
     const company = String(body?.company || "").trim();
-    if (!name || name.length > 100) return Response.json({ error: "Please enter your name." }, { status: 400 });
+    if (name.length > 100) return Response.json({ error: "Name is too long." }, { status: 400 });
     if (company.length > 120) return Response.json({ error: "Company name is too long." }, { status: 400 });
     details = { name, company: company || undefined };
   }

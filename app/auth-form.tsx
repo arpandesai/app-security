@@ -1,15 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
-/** Sign-up (name, company, email) or sign-in (email), then a 6-digit code from the email. */
-export function AuthForm({ mode }: { mode: "signup" | "login" }) {
-  const [step, setStep] = useState<"details" | "code">("details");
+/**
+ * Email first, then a 6-digit code from the email.
+ * "start" is the landing page (new or returning: either way they end up on the dashboard); "login" is /login.
+ */
+export function AuthForm({ mode, cta }: { mode: "start" | "login"; cta?: string }) {
+  const [step, setStep] = useState<"email" | "code">("email");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
-  const [fields, setFields] = useState<Record<string, string>>({});
+  const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
+  const [resent, setResent] = useState(false);
+  const codeInput = useRef<HTMLInputElement>(null);
 
   async function call(path: string, body: unknown) {
     const res = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -18,31 +22,27 @@ export function AuthForm({ mode }: { mode: "signup" | "login" }) {
     return data;
   }
 
-  async function sendCode(values: Record<string, string>) {
+  async function sendCode(address: string, honeypot = "") {
     setBusy(true);
     setError("");
     try {
-      const data = await call("/api/auth/start", { ...values, mode });
-      setFields(values);
+      await call("/api/auth/start", { email: address, website: honeypot, mode: mode === "start" ? "signup" : "login" });
       setStep("code");
-      setInfo(
-        data.existing && mode === "signup"
-          ? `You already have an account. We sent a sign-in code to ${values.email}.`
-          : `We sent a 6-digit code to ${values.email}.`
-      );
+      setTimeout(() => codeInput.current?.focus(), 0);
+      return true;
     } catch (e: any) {
       setError(e.message);
+      return false;
     } finally {
       setBusy(false);
     }
   }
 
-  async function verify(e: React.FormEvent) {
-    e.preventDefault();
+  async function verify(value: string) {
     setBusy(true);
     setError("");
     try {
-      const data = await call("/api/auth/verify", { email: fields.email, code });
+      const data = await call("/api/auth/verify", { email, code: value });
       window.location.href = data.redirect || "/dashboard";
     } catch (err: any) {
       setError(err.message);
@@ -52,33 +52,54 @@ export function AuthForm({ mode }: { mode: "signup" | "login" }) {
 
   if (step === "code") {
     return (
-      <form className="otp" onSubmit={verify}>
-        <p className="note" style={{ margin: 0 }}>
-          {info} It expires in 10 minutes.
+      <form
+        className="auth"
+        onSubmit={(e) => {
+          e.preventDefault();
+          verify(code);
+        }}
+      >
+        <p className="auth-lead">
+          Check your inbox. We sent a 6-digit code to <b>{email}</b>.
         </p>
-        <div className="otp-row">
+        <div className="auth-row">
           <input
+            ref={codeInput}
+            className="auth-code"
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            onChange={(e) => {
+              const v = e.target.value.replace(/\D/g, "").slice(0, 6);
+              setCode(v);
+              if (v.length === 6 && !busy) verify(v);
+            }}
             inputMode="numeric"
             autoComplete="one-time-code"
-            placeholder="123456"
+            placeholder="000000"
             aria-label="6-digit code"
             required
-            autoFocus
           />
-          <button className="btn" type="submit" disabled={busy || code.length !== 6}>
+          <button className="btn auth-btn" type="submit" disabled={busy || code.length !== 6}>
             {busy ? "Checking…" : "Continue"}
           </button>
         </div>
-        {error ? <div className="note err">{error}</div> : null}
-        <p className="muted" style={{ margin: 0 }}>
-          <button type="button" className="linkbtn" disabled={busy} onClick={() => sendCode(fields)}>
-            Send a new code
-          </button>{" "}
-          ·{" "}
-          <button type="button" className="linkbtn" onClick={() => (setStep("details"), setCode(""), setError(""))}>
-            Use a different email
+        {error ? (
+          <p className="auth-err" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <p className="auth-small">
+          No email after a minute? Check spam, or{" "}
+          <button
+            type="button"
+            className="linkbtn"
+            disabled={busy}
+            onClick={async () => setResent(await sendCode(email))}
+          >
+            {resent ? "send another code" : "send a new code"}
+          </button>
+          .{" "}
+          <button type="button" className="linkbtn" onClick={() => (setStep("email"), setCode(""), setError(""))}>
+            Change email
           </button>
         </p>
       </form>
@@ -87,24 +108,38 @@ export function AuthForm({ mode }: { mode: "signup" | "login" }) {
 
   return (
     <form
-      className={mode === "signup" ? "signup" : "signup login"}
+      className="auth"
       onSubmit={(e) => {
         e.preventDefault();
-        sendCode(Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>);
+        const f = new FormData(e.currentTarget);
+        sendCode(email, String(f.get("website") || ""));
       }}
     >
-      {mode === "signup" ? (
-        <>
-          <input name="name" required maxLength={100} placeholder="Your name" aria-label="Your name" autoComplete="name" defaultValue={fields.name} />
-          <input name="company" maxLength={120} placeholder="Company (optional)" aria-label="Company" autoComplete="organization" defaultValue={fields.company} />
-        </>
+      <div className="auth-row">
+        <label className="sr" htmlFor={`email-${mode}`}>
+          Work email
+        </label>
+        <input
+          id={`email-${mode}`}
+          className="auth-email"
+          type="email"
+          required
+          maxLength={200}
+          placeholder="you@company.com"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <input name="website" tabIndex={-1} autoComplete="off" className="hp" aria-hidden="true" />
+        <button className="btn auth-btn" type="submit" disabled={busy}>
+          {busy ? "Sending code…" : cta || (mode === "start" ? "Get my free report" : "Email me a code")}
+        </button>
+      </div>
+      {error ? (
+        <p className="auth-err" role="alert">
+          {error}
+        </p>
       ) : null}
-      <input name="email" type="email" required maxLength={200} placeholder="you@company.com" aria-label="Email" autoComplete="email" defaultValue={fields.email} />
-      <input name="website" tabIndex={-1} autoComplete="off" className="hp" aria-hidden="true" />
-      <button className="btn" type="submit" disabled={busy}>
-        {busy ? "Sending…" : mode === "signup" ? "Get my MCP URL" : "Email me a code"}
-      </button>
-      {error ? <div className="note err">{error}</div> : null}
     </form>
   );
 }
