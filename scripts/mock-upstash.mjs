@@ -28,6 +28,7 @@ function run([cmd, ...a]) {
     }
     case "HGETALL": { const e = get(a[0]); return e ? [...e.v].flat() : []; }
     case "EXPIRE": { const e = get(a[0]); if (!e) return 0; e.exp = now() + Number(a[1]) * 1000; return 1; }
+    case "DEL": { let n = 0; for (const k of a) if (db.delete(k)) n++; return n; }
     case "RPUSH": { const [k, ...vals] = a; const e = get(k) ?? { v: [], exp: 0 }; e.v.push(...vals.map(String)); db.set(k, e); return e.v.length; }
     default: throw new Error(`unsupported command ${cmd}`);
   }

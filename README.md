@@ -2,7 +2,7 @@
 
 A hosted MCP server that runs a security audit of a mobile app's **source code**, through the coding agent the founder already uses. The user types `audit`, their agent checks the code on their machine against the MobileFirst Secure rule engine, and the server turns the findings into a scored, founder-readable report with a private link.
 
-- **Endpoint:** `https://app-security.mobilefirst.in/mcp` (Streamable HTTP, no sign-in)
+- **Endpoint:** a personal URL per customer, `https://app-security.mobilefirst.in/mcp/<token>` (Streamable HTTP). Customers get it by entering name, company (optional) and email on the landing page.
 - **Stacks:** React Native (incl. Expo), Flutter, native Android, native iOS. Supabase and Firebase backends are detected automatically.
 - **Scope:** audit only. The audit never changes the user's code.
 
@@ -46,26 +46,41 @@ The codebase never leaves the user's machine. Only rule results, file paths, sho
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Yes (prod) | Upstash Redis, added by the Marketplace integration. Prefixed names (`<PREFIX>_KV_REST_API_URL`) and `UPSTASH_REDIS_REST_URL`/`_TOKEN` also work. Without Redis on Vercel, audits are refused with a clear message: parallel requests hit different server instances, so in-memory storage loses audits. |
 | `PUBLIC_BASE_URL` | No | Defaults to `https://app-security.mobilefirst.in`. Used to build report links. |
 | `LEAD_WEBHOOK_URL` | Recommended | Every lead is POSTed here as JSON with a `text` field, so a Slack incoming webhook works as is. Zapier and Make work too. |
-| `RESEND_API_KEY`, `EMAIL_FROM` | Recommended | Sends the "Email me the report" email through Resend. Example: `EMAIL_FROM="MobileFirst Secure <secure@mobilefirst.in>"`. Without these, emails are saved as leads and the user can save a PDF instead. |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Yes (prod) | Sends sign-in codes and the "Email me the report" email through Resend. `EMAIL_FROM` must use your verified Resend domain, e.g. `MobileFirst Secure <secure@mobilefirst.in>`. Without these, nobody can sign up or sign in. |
 | `LEAD_NOTIFY_EMAIL` | No | Also email every lead to this address (needs Resend). |
 | `REPORT_TTL_DAYS` | No | How long report links stay live. Default: 90. |
+| `ADMIN_PASSWORD` | Yes (prod) | Password for `/admin` (HTTP basic auth, any username). Without it, the admin page returns 404. |
+| `SUPPORT_EMAIL` | Recommended | Shown to customers whose URL has been switched off. |
 
 All leads are also stored in the Redis list `leads`, which you can read in the Upstash console.
 
 Check the deployment at `/api/health`: `{"ok":true,"storage":"redis"}` means audits are being stored correctly. A 503 with `"storage":"memory"` means Redis isn't connected.
 
+## Accounts
+
+The smallest setup that gives every customer a dashboard and gives MobileFirst control:
+
+1. **Sign up** on the landing page: name, company (optional), email. A 6-digit code is emailed through Resend. The account is created only after the code is entered, so every account is a verified inbox. Signing up again with an existing email just signs that person in.
+2. **Sign in** at `/login`: email, then a code. Codes expire after 10 minutes, allow 5 attempts, work once, and can be re-sent every 30 seconds. A session cookie (HttpOnly, 30 days) keeps the customer signed in.
+3. **Dashboard** at `/dashboard`: the customer's personal MCP URL with setup steps for Claude Code, Claude, Codex, ChatGPT, Cursor and VS Code, plus every audit they've run with verdict, score and report link.
+4. **Personal MCP URL**, `/mcp/<token>`. The token in the URL identifies the customer, so it works in every client, including ChatGPT and the Claude app, which can't send custom auth headers. Audits started through it are saved to the account.
+5. The shared URL `/mcp` still connects, but `audit` replies with a link to sign up. Unknown or switched-off URLs get a clear message too.
+6. **Admin** at `/admin` (password: `ADMIN_PASSWORD`): every customer with company, email, signup date, audit count and last audit, a view of each customer's audits, and **Switch off / Turn on** for their URL. Switching off takes effect on the next request.
+
+Tokens are 192-bit random values looked up through a SHA-256 index; codes and sessions are stored hashed too. Report links stay unguessable and shareable, so founders can forward them to their developer.
+
 ## Connect a coding agent
 
-Each agent needs one setup step, then the user types `audit` in their project.
+Customers copy setup steps with their personal URL from their dashboard. The pattern, with `<URL>` = `https://app-security.mobilefirst.in/mcp/<token>`:
 
 | Agent | Setup |
 |---|---|
-| Claude Code | `claude mcp add --transport http mobilefirst-secure https://app-security.mobilefirst.in/mcp` |
-| Claude app (desktop, web) | Customize → Connectors → Add custom connector → paste the URL. On Team and Enterprise plans an Owner adds it under Organization settings → Connectors (Add → Custom → Web), then members connect. Free plans allow one custom connector. Claude needs the code too: add the project folder in the desktop app (+ → Add folder) or connect the GitHub repo. |
-| Codex (CLI, IDE extension) | `codex mcp add mobilefirst-secure --url https://app-security.mobilefirst.in/mcp` |
-| ChatGPT | In the ChatGPT desktop app: Settings → MCP servers → Add server → Streamable HTTP → paste the URL. ChatGPT chat on the web can't see a local codebase, so the desktop app (through Codex) is the path for code audits. |
-| Cursor | `.cursor/mcp.json`: `{"mcpServers":{"mobilefirst-secure":{"url":"https://app-security.mobilefirst.in/mcp"}}}` |
-| VS Code (Copilot) | `.vscode/mcp.json`: `{"servers":{"mobilefirst-secure":{"type":"http","url":"https://app-security.mobilefirst.in/mcp"}}}` |
+| Claude Code | `claude mcp add --transport http mobilefirst-secure <URL>` |
+| Claude app (desktop, web) | Customize → Connectors → Add custom connector → paste the URL, no authentication. On Team and Enterprise plans an Owner adds it under Organization settings → Connectors (Add → Custom → Web), then members connect. Free plans allow one custom connector. Claude needs the code too: add the project folder in the desktop app (+ → Add folder) or connect the GitHub repo. |
+| Codex (CLI, IDE extension) | `codex mcp add mobilefirst-secure --url <URL>` |
+| ChatGPT | In the ChatGPT desktop app: Settings → MCP servers → Add server → Streamable HTTP → paste the URL, no authentication. ChatGPT chat on the web can't see a local codebase, so the desktop app (through Codex) is the path for code audits. |
+| Cursor | `.cursor/mcp.json`: `{"mcpServers":{"mobilefirst-secure":{"url":"<URL>"}}}` |
+| VS Code (Copilot) | `.vscode/mcp.json`: `{"servers":{"mobilefirst-secure":{"type":"http","url":"<URL>"}}}` |
 | Others | Any MCP client that supports Streamable HTTP. |
 
 In clients that show MCP prompts as slash commands, the `audit` prompt also appears. In Claude Code it's `/mcp__mobilefirst-secure__audit`. Typing plain "audit" works everywhere, because the server's instructions tell the agent to start the audit.
@@ -108,25 +123,31 @@ npm run dev                      # http://localhost:3000, MCP at /mcp
 To run the end-to-end test, which plays the coding agent against an insecure Expo + Supabase sample app in `test-fixtures/`:
 
 ```bash
-node scripts/mock-osv.mjs &           # local stand-in for api.osv.dev, npm and pub.dev
+node scripts/mock-osv.mjs &           # local stand-in for api.osv.dev, npm, pub.dev and Resend
 npm run build
-PUBLIC_BASE_URL=http://localhost:3000 OSV_API_URL=http://localhost:8787 \
+PUBLIC_BASE_URL=http://localhost:3000 ADMIN_PASSWORD=test OSV_API_URL=http://localhost:8787 \
   NPM_REGISTRY_URL=http://localhost:8787/npm NPM_DOWNLOADS_URL=http://localhost:8787/downloads \
   PUB_API_URL=http://localhost:8787/pub npx next start &
-MFS_URL=http://localhost:3000 npm run test:e2e
+MFS_URL=http://localhost:3000 ADMIN_PASSWORD=test npm run test:e2e
 ```
 
 To test the Redis code path too, run `node scripts/mock-upstash.mjs &` (a local stand-in for the Upstash REST API) and start the server with `KV_REST_API_URL=http://localhost:8788 KV_REST_API_TOKEN=test`. Run this whenever `lib/store.ts` changes.
 
-The test covers: tool and prompt discovery, stack detection, rejection of invalid submissions, category-by-category submission, server-side secret masking, dependency CVEs, the registry check for invented packages, the report page, lead capture, parallel submissions, and the fallback when OSV is unreachable.
+The test covers: sign-up by emailed code (wrong, reused and throttled codes, invalid and bot sign-ups), sessions and sign-out, the shared and unknown URLs pointing users to sign up, tool and prompt discovery, stack detection, rejection of invalid submissions, category-by-category submission, server-side secret masking, dependency CVEs, the registry check for invented packages, the report page, lead capture, the dashboard, the admin page (password, customer list, switching a URL off and on), parallel submissions, and the fallback when OSV is unreachable.
 
 ## Project layout
 
 ```
-app/mcp/route.ts        MCP endpoint (mcp-handler, MCP SDK v2)
+app/mcp/route.ts        Shared MCP endpoint: asks users to get their personal URL
+app/mcp/[token]/        Personal MCP endpoint (mcp-handler, MCP SDK v2)
+app/dashboard/          Customer dashboard (signed in): MCP URL setup + audit list
+app/login/              Sign in by emailed code
+app/api/auth/           Send code, verify code, sign out
+app/admin/              Admin: customers, their audits, switch URLs off and on
+middleware.ts           Basic auth for /admin
 app/r/[id]/             Report page with lead forms
 app/api/lead/route.ts   Lead capture, webhook, Resend email
-app/page.tsx            Minimal landing page with per-agent install
+app/page.tsx            Minimal landing page with the sign-up form
 lib/rules/              Rule catalog; meta.ts holds levels and standards
 lib/detect.ts           Stack detection
 lib/checklist.ts        Checklist + agent instructions
@@ -135,11 +156,15 @@ lib/report.ts           Scoring, verdict, chat summary
 lib/osv.ts              Dependency vulnerability lookup (OSV.dev, free)
 lib/registry.ts         Invented or rarely used package lookup (npm, pub.dev, free)
 lib/mask.ts             Secret masking for evidence snippets
+lib/accounts.ts         Accounts, tokens, per-account audit list
+lib/auth.ts             Email codes and sessions
+lib/email.ts            Resend
 lib/store.ts            Upstash Redis (or in-memory for dev)
 ```
 
 ## Deferred for later
 
-- **Report link privacy:** links are already unguessable (128-bit random IDs) and expire after `REPORT_TTL_DAYS`. Owner-only access and manual revocation are not built yet.
-- **Abuse limits:** there's no per-IP or per-connection rate limiting on `/mcp` or `/api/lead` yet. Vercel's Firewall rate-limit rules are the quickest option when needed.
-- **Accounts, audit history and re-audit comparison**, for the ongoing protection tier.
+- **Report link privacy:** links are unguessable (128-bit random IDs) and expire after `REPORT_TTL_DAYS`. Owner-only access is not built yet.
+- **Regenerating a leaked URL** from the dashboard.
+- **Abuse limits:** any URL can be switched off from `/admin`, and codes are throttled to one per email every 30 seconds, but there are no per-account audit limits or per-IP limits yet. Vercel's Firewall rate-limit rules are the quickest option for `/api/auth/start` when needed.
+- **Re-audit comparison**, for the ongoing protection tier.

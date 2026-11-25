@@ -1,4 +1,4 @@
-// Minimal OSV + package registry mock for local tests.
+// Minimal OSV + package registry + Resend mock for local tests.
 // Real services: https://api.osv.dev, https://registry.npmjs.org, https://api.npmjs.org/downloads, https://pub.dev.
 // Run the server with OSV_API_URL=http://localhost:8787 NPM_REGISTRY_URL=http://localhost:8787/npm
 //   NPM_DOWNLOADS_URL=http://localhost:8787/downloads PUB_API_URL=http://localhost:8787/pub
@@ -15,6 +15,8 @@ const DETAILS = {
 // Packages that don't exist on the public registries (e.g. names invented by AI tools).
 const MISSING = new Set(["react-native-secure-storage-pro", "flutter_secure_vault_pro"]);
 const LOW_DOWNLOADS = { "rn-payflow-utils": 7 };
+// Resend stand-in (RESEND_API_URL=http://localhost:8787): POST /emails stores mail; GET /_mail?to= returns the latest.
+const MAIL = new Map();
 
 http
   .createServer((req, res) => {
@@ -29,6 +31,15 @@ http
           return ids.length ? { vulns: ids.map((id) => ({ id, modified: "2026-01-01T00:00:00Z" })) } : {};
         });
         return res.end(JSON.stringify({ results }));
+      }
+      if (req.method === "POST" && req.url === "/emails") {
+        const m = JSON.parse(body);
+        for (const to of [].concat(m.to)) MAIL.set(String(to).toLowerCase(), m);
+        return res.end(JSON.stringify({ id: "mock_" + Date.now() }));
+      }
+      if (req.url.startsWith("/_mail?")) {
+        const to = new URL(req.url, "http://x").searchParams.get("to").toLowerCase();
+        return MAIL.has(to) ? res.end(JSON.stringify(MAIL.get(to))) : ((res.statusCode = 404), res.end("{}"));
       }
       const npm = req.url.match(/^\/npm\/(.+)\/latest$/);
       if (npm) {
