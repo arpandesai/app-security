@@ -26,9 +26,9 @@ function FirstReport() {
       <ol className="pn-steps">
         <li>
           <b>Connect your coding agent</b>
-          <span>Add your personal link to Claude Code, Codex, ChatGPT, Cursor or another agent. It takes about a minute.</span>
-          <a className="btn sm" href="/dashboard/setup">
-            Open setup
+          <span>Pick Claude Code, Codex, ChatGPT, Cursor or another agent, and follow the steps. It takes about a minute.</span>
+          <a className="btn sm" href="/dashboard/new-audit">
+            Start step by step
           </a>
         </li>
         <li>
@@ -86,7 +86,19 @@ export default async function Overview() {
     );
 
   return (
-    <Panel account={account} page="overview" title={firstName ? `Hi ${firstName}` : "Welcome"} intro={intro}>
+    <Panel
+      account={account}
+      page="overview"
+      title={firstName ? `Hi ${firstName}` : "Welcome"}
+      intro={intro}
+      actions={
+        reports.length ? (
+          <a className="btn" href="/dashboard/new-audit">
+            Run a new audit
+          </a>
+        ) : undefined
+      }
+    >
       {reports.length === 0 ? (
         <>
           {sharedSection}
