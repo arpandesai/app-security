@@ -18,6 +18,12 @@ export const G = {
   configFiles: "**/*.{json,plist,xml,properties,yaml,yml,toml,xcconfig}",
   sql: "**/*.sql",
   firebaseRules: "**/firestore.rules,**/database.rules.json,**/storage.rules,**/firebase.json",
+  backend:
+    "supabase/functions/**,functions/**,api/**,server/**,backend/**,app/api/**,pages/api/**,src/app/api/**,src/pages/api/**",
+  aiToolConfig:
+    ".mcp.json,**/.cursor/mcp.json,**/.vscode/mcp.json,**/.claude/settings*.json,**/.codex/config.toml,**/.windsurf/**,**/claude_desktop_config.json,**/.continue/config.*",
+  lockfiles:
+    "**/package-lock.json,**/yarn.lock,**/pnpm-lock.yaml,**/bun.lock,**/bun.lockb,**/pubspec.lock,**/Podfile.lock,**/Package.resolved,**/gradle.lockfile",
   ci: ".github/workflows/*.yml,codemagic.yaml,bitrise.yml,fastlane/*,**/*.sh,Makefile,package.json",
 };
 

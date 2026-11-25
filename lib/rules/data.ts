@@ -7,9 +7,10 @@ export const STORAGE_RULES: Rule[] = [
     category: "STORAGE",
     severity: "high",
     title: "Login tokens or personal data stored unencrypted",
-    check: "Trace where the app stores auth tokens, refresh tokens, passwords, PINs, session IDs and sensitive personal data on the device.",
+    check:
+      "Trace where the app stores auth tokens, refresh tokens, passwords, PINs, session IDs, sensitive personal data and AI chat history on the device.",
     failIf:
-      "Any of those values is written to an unencrypted store: AsyncStorage, unencrypted MMKV, redux-persist/zustand persist on AsyncStorage, SharedPreferences, Hive without a cipher, GetStorage, plain SQLite, UserDefaults, @AppStorage, plain files.",
+      "Any of those values is written to an unencrypted store: AsyncStorage, unencrypted MMKV, redux-persist/zustand persist on AsyncStorage, SharedPreferences, Hive without a cipher, GetStorage, plain SQLite, UserDefaults, @AppStorage, plain files. AI chat conversations count as sensitive personal data.",
     passIf:
       "Sensitive values use Keychain/Keystore-backed storage: expo-secure-store, react-native-keychain, react-native-encrypted-storage, flutter_secure_storage, iOS Keychain, Android Keystore-encrypted storage.",
     variants: [
@@ -88,11 +89,13 @@ export const STORAGE_RULES: Rule[] = [
     id: "MFS-STORAGE-03",
     category: "STORAGE",
     severity: "medium",
-    title: "Sensitive data printed to logs",
-    check: "Review log statements that can run in release builds.",
+    title: "Sensitive data leaking into logs or URLs",
+    check:
+      "Review log statements that can run in release builds, and URLs the app builds.",
     failIf:
-      "Logs that run in release include tokens, passwords, OTPs, Authorization headers, full API responses containing personal data, or card/bank details.",
-    passIf: "Logs are generic, or sensitive logging is wrapped in debug-only guards (__DEV__, kDebugMode, BuildConfig.DEBUG, #if DEBUG), or console calls are stripped in production builds.",
+      "Logs that run in release include tokens, passwords, OTPs, Authorization headers, full API responses with personal data, or card/bank details; or tokens, passwords, OTPs, API keys, email addresses or phone numbers are sent as URL query parameters.",
+    passIf:
+      "Logs are generic or wrapped in debug-only guards (__DEV__, kDebugMode, BuildConfig.DEBUG, #if DEBUG), console calls are stripped from production builds, and secrets travel in headers or request bodies.",
     variants: [
       {
         target: "react-native",
@@ -118,10 +121,18 @@ export const STORAGE_RULES: Rule[] = [
         lookIn: [G.swiftObjc],
         searchFor: ["print\\(", "NSLog\\(", "os_log\\(", "debugPrint\\("],
       },
+      {
+        target: "any",
+        scope: "URLs in all app code",
+        lookIn: [G.js, G.dart, G.kotlinJava, G.swiftObjc],
+        searchFor: ["[?&](token|access_token|password|otp|apiKey|api_key|email|phone)=", "\\?.*\\$\\{.*(token|password)"],
+      },
     ],
-    founder: "Logins and personal data end up in device logs and crash tools, where other people can read them.",
-    fix: "Remove sensitive values from logs, guard debug logging behind build flags, and strip console output from release builds.",
-    refs: { masvs: ["MASVS-STORAGE-2"], maswe: ["MASWE-0005"], cwe: ["CWE-532"] },
+    founder:
+      "Logins and personal data end up in device logs, crash tools, server logs and analytics, where other people can read them.",
+    fix:
+      "Remove sensitive values from logs, guard debug logging behind build flags, strip console output from release builds, and send secrets in headers or request bodies, never in URLs.",
+    refs: { masvs: ["MASVS-STORAGE-2", "MASVS-NETWORK-1"], maswe: ["MASWE-0005"], cwe: ["CWE-532", "CWE-598"] },
   },
   {
     id: "MFS-STORAGE-04",
@@ -130,7 +141,7 @@ export const STORAGE_RULES: Rule[] = [
     title: "Private app data copied into device backups",
     check: "Check backup configuration for Android and backup exclusion / Keychain accessibility for iOS.",
     failIf:
-      "Android: allowBackup is true or unset (default true) with no backup/data-extraction rules excluding files, databases or shared_prefs that hold sensitive data. iOS: sensitive files not excluded from backup, or tokens stored in Keychain with a non-ThisDeviceOnly accessibility class.",
+      "The app handles money, health or identity data, and: on Android, allowBackup is true or unset (default true) with no backup or data-extraction rules excluding files, databases or shared_prefs that hold sensitive data; on iOS, sensitive files aren't excluded from backup, or tokens are stored in Keychain with a non-ThisDeviceOnly accessibility class.",
     passIf: "allowBackup=\"false\", or rules exclude sensitive data; iOS sensitive items use ThisDeviceOnly classes or backup exclusion.",
     variants: [
       {
@@ -156,6 +167,49 @@ export const STORAGE_RULES: Rule[] = [
     founder: "Users' private data from your app gets copied into cloud and computer backups, outside your control.",
     fix: "Set allowBackup=\"false\" or add backup rules excluding sensitive files; on iOS use ThisDeviceOnly Keychain classes and exclude sensitive files from backup.",
     refs: { masvs: ["MASVS-STORAGE-2"], maswe: ["MASWE-0006"], cwe: ["CWE-530"] },
+  },
+  {
+    id: "MFS-STORAGE-05",
+    category: "STORAGE",
+    severity: "medium",
+    title: "Local database not encrypted",
+    check:
+      "Find on-device databases and what they store.",
+    failIf:
+      "The app handles money, health or identity data and stores sensitive records in an on-device database without encryption: SQLite/expo-sqlite/sqflite/Room/Core Data without SQLCipher or file protection, Realm without an encryptionKey, Hive without a cipher, WatermelonDB on plain SQLite.",
+    passIf:
+      "Sensitive on-device databases are encrypted with a key kept in Keychain/Keystore, or the app stores nothing sensitive in a local database.",
+    variants: [
+      {
+        target: "react-native",
+        scope: "React Native (JS/TS)",
+        lookIn: [G.js],
+        searchFor: ["expo-sqlite|react-native-sqlite|op-sqlite|watermelondb|realm", "encryptionKey|SQLCipher|cipher"],
+      },
+      {
+        target: "flutter",
+        scope: "Flutter (Dart)",
+        lookIn: [G.dart, G.pubspec],
+        searchFor: ["sqflite|drift|isar|hive|realm|objectbox", "sqlcipher|encryptionCipher|encryptionKey"],
+      },
+      {
+        target: "android",
+        scope: "Android (Kotlin/Java)",
+        lookIn: [G.kotlinJava, G.gradle],
+        searchFor: ["Room\\.databaseBuilder|SQLiteOpenHelper|openOrCreateDatabase", "SupportFactory|net\\.zetetic|sqlcipher"],
+      },
+      {
+        target: "ios",
+        scope: "iOS (Swift/ObjC)",
+        lookIn: [G.swiftObjc],
+        searchFor: ["NSPersistentContainer|sqlite3_open|GRDB|Realm", "NSFileProtectionComplete|\\.complete|cipher"],
+      },
+    ],
+    founder:
+      "Sensitive records kept in an on-device database are readable from a lost, rooted or backed-up phone.",
+    fix:
+      "Encrypt sensitive local databases (SQLCipher, Realm or Hive encryption, iOS file protection) with a key held in Keychain/Keystore.",
+    refs: { masvs: ["MASVS-STORAGE-1"], maswe: ["MASWE-0006"], cwe: ["CWE-311"] },
   },
 ];
 
@@ -185,11 +239,13 @@ export const CRYPTO_RULES: Rule[] = [
     id: "MFS-CRYPTO-02",
     category: "CRYPTO",
     severity: "medium",
-    title: "Weak or broken encryption",
-    check: "Identify the algorithms and modes used wherever the app encrypts data.",
+    title: "Weak cryptography",
+    check:
+      "Identify the encryption algorithms and modes, hashing functions and random number sources the app uses for anything security-related.",
     failIf:
-      "DES, 3DES, RC4 or Blowfish; AES in ECB mode (including Java `Cipher.getInstance(\"AES\")`, which defaults to ECB); or home-made 'encryption' (XOR, Base64, ROT) used to protect sensitive data.",
-    passIf: "AES-GCM, ChaCha20-Poly1305, or platform crypto (CryptoKit, Tink, Keystore). Not applicable if the app does no custom encryption.",
+      "Any of: DES, 3DES, RC4 or Blowfish; AES in ECB mode (including Java Cipher.getInstance(\"AES\"), which defaults to ECB); home-made 'encryption' (XOR, Base64, ROT) protecting sensitive data; MD5 or SHA-1 for passwords, PINs, tokens, signatures or integrity checks; a fast hash (plain SHA-256) for stored passwords or PINs; or a non-cryptographic random generator (Math.random, Dart Random(), java.util.Random, rand()) creating tokens, OTPs, passwords, nonces, IVs, keys or invite codes.",
+    passIf:
+      "AES-GCM/ChaCha20-Poly1305 or platform crypto, SHA-256+ for integrity, a slow KDF for passwords, and a cryptographic RNG for security values. Non-security uses (MD5 cache keys, Math.random for UI) are fine. Not applicable if the app does no custom cryptography.",
     variants: [
       {
         target: "any",
@@ -197,41 +253,12 @@ export const CRYPTO_RULES: Rule[] = [
         lookIn: [G.js, G.dart, G.kotlinJava, G.swiftObjc],
         searchFor: ["CryptoJS\\.(DES|TripleDES|RC4)", "mode\\.ECB|AESMode\\.ecb|/ECB/", "Cipher\\.getInstance\\(\"(AES|DES|DESede|RC4|Blowfish)\"\\)", "kCCAlgorithm(DES|3DES|RC4)|kCCOptionECBMode", "createCipher\\("],
       },
-    ],
-    founder: "The encryption used is outdated and can be broken, so the data it protects isn't really protected.",
-    fix: "Switch to AES-GCM or ChaCha20-Poly1305 through a vetted library or platform API, with a random nonce per message.",
-    refs: { masvs: ["MASVS-CRYPTO-1"], maswe: ["MASWE-0007"], cwe: ["CWE-327"] },
-  },
-  {
-    id: "MFS-CRYPTO-03",
-    category: "CRYPTO",
-    severity: "medium",
-    title: "Weak hashing for passwords or integrity checks",
-    check: "Find hashing calls and decide what each one protects.",
-    failIf:
-      "MD5 or SHA-1 used for passwords, PINs, tokens, signatures or integrity checks, or a fast hash (plain SHA-256) used to store passwords/PINs on the device without a slow key-derivation function.",
-    passIf: "Security uses SHA-256+ for integrity and a slow KDF (Argon2, scrypt, PBKDF2 with high iterations) for passwords. Non-security uses of MD5 (cache keys, checksums of public files) are fine.",
-    variants: [
       {
         target: "any",
         scope: "All app code",
         lookIn: [G.js, G.dart, G.kotlinJava, G.swiftObjc],
         searchFor: ["md5|MD5", "sha1|SHA1|SHA-1", "Insecure\\.(MD5|SHA1)", "CC_MD5|CC_SHA1", "MessageDigest\\.getInstance\\(\"(MD5|SHA-1)\"", "createHash\\(['\"](md5|sha1)"],
       },
-    ],
-    founder: "Passwords or checks rely on hashing that attackers can reverse or fake with free tools.",
-    fix: "Use SHA-256 or better for integrity, and Argon2/scrypt/PBKDF2 for anything password-like. Better still, keep password handling on the server.",
-    refs: { masvs: ["MASVS-CRYPTO-1"], maswe: ["MASWE-0008"], cwe: ["CWE-328"] },
-  },
-  {
-    id: "MFS-CRYPTO-04",
-    category: "CRYPTO",
-    severity: "medium",
-    title: "Predictable random values used for security",
-    check: "Find random number generation and what the values are used for.",
-    failIf: "A non-cryptographic generator (Math.random, Dart Random(), java.util.Random, kotlin.random.Random, rand()/random()) creates tokens, OTPs, passwords, nonces, IVs, keys, session IDs or invite codes.",
-    passIf: "Security values use crypto.getRandomValues / expo-crypto / Random.secure() / SecureRandom / SecRandomCopyBytes, or random values are only used for UI and non-security logic.",
-    variants: [
       {
         target: "react-native",
         scope: "React Native (JS/TS)",
@@ -258,9 +285,11 @@ export const CRYPTO_RULES: Rule[] = [
         searchFor: ["\\brand\\(\\)|\\brandom\\(\\)|srand|drand48"],
       },
     ],
-    founder: "Codes or tokens that should be unguessable can be predicted by an attacker.",
-    fix: "Use the platform's cryptographically secure random generator for every security-related value.",
-    refs: { masvs: ["MASVS-CRYPTO-1"], maswe: ["MASWE-0012"], cwe: ["CWE-338"] },
+    founder:
+      "The app protects data with outdated or predictable cryptography that attackers can break, reverse or guess with free tools.",
+    fix:
+      "Use AES-GCM or ChaCha20-Poly1305 through platform APIs, SHA-256+ for integrity, Argon2/scrypt/PBKDF2 for anything password-like, and the platform's secure random generator for every security value.",
+    refs: { masvs: ["MASVS-CRYPTO-1"], maswe: ["MASWE-0007", "MASWE-0008", "MASWE-0012"], cwe: ["CWE-327", "CWE-328", "CWE-338"] },
   },
 ];
 

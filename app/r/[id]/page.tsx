@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { Finding, Report } from "@/lib/types";
 import { kv } from "@/lib/store";
 import { reportKey } from "@/lib/mcp";
-import { categoryName } from "@/lib/rules";
+import { categoryName, LEVEL_NAMES } from "@/lib/rules";
 import { BRAND, SLOGAN } from "@/lib/config";
 import { LeadForm, PrintExpander } from "./lead-form";
 
@@ -21,11 +21,21 @@ const fmtDate = (iso: string) =>
 
 function Refs({ f }: { f: Finding }) {
   const parts = [...(f.refs.masvs || []), ...(f.refs.maswe || []), ...(f.refs.cwe || [])];
-  if (!parts.length) return <span>MobileFirst rule {f.ruleId}</span>;
+  const standards = f.standards || [];
   return (
-    <span>
-      {f.ruleId} · {parts.join(" · ")}
-    </span>
+    <>
+      <span>
+        {BRAND} {f.ruleId}
+        {f.level ? ` · ${LEVEL_NAMES[f.level]} level` : ""}
+        {parts.length ? ` · ${parts.join(" · ")}` : ""}
+      </span>
+      {standards.length ? (
+        <>
+          <br />
+          <span>{standards.join(" · ")}</span>
+        </>
+      ) : null}
+    </>
   );
 }
 
