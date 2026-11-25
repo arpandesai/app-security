@@ -180,6 +180,8 @@ export function registerMobileFirstSecure(server: McpServer) {
       if (!storageReady) return errorText(STORAGE_NOT_READY);
       const session = await kv.getJSON<AuditSession>(sessionKey(args.audit_id));
       if (!session) return errorText(`Unknown or expired audit_id "${args.audit_id}". Call \`audit\` to start a new audit.`);
+      // Audits started on an older ruleset may list rules that were since merged or removed: drop those.
+      session.ruleIds = session.ruleIds.filter((id) => getRule(id));
 
       const inPlan = new Set(session.ruleIds);
       const problems: string[] = [];
