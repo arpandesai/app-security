@@ -125,3 +125,34 @@ export async function listAccountReports(accountId: string): Promise<AccountRepo
     .map((v) => (typeof v === "string" ? (JSON.parse(v) as AccountReport) : (v as AccountReport)))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
+
+export async function updateProfile(id: string, input: { name: string; company?: string }) {
+  const account = await getAccount(id);
+  if (!account) return null;
+  account.name = input.name.trim();
+  account.company = input.company?.trim() || undefined;
+  await kv.setJSON(acctKey(id), account, FOREVER);
+  return account;
+}
+
+export interface AppSummary {
+  appName: string;
+  latest: AccountReport;
+  audits: number;
+}
+
+/** One entry per app (by name), newest audit first. Reports must already be sorted newest first. */
+export function groupByApp(reports: AccountReport[]): AppSummary[] {
+  const apps = new Map<string, AppSummary>();
+  for (const r of reports) {
+    const key = r.appName.trim().toLowerCase();
+    const app = apps.get(key);
+    if (app) app.audits++;
+    else apps.set(key, { appName: r.appName, latest: r, audits: 1 });
+  }
+  return [...apps.values()];
+}
+
+/** Open critical and high findings in an audit. */
+export const urgentCount = (r: AccountReport) => r.counts.critical + r.counts.high;
+export const issueCount = (r: AccountReport) => r.counts.critical + r.counts.high + r.counts.medium + r.counts.low;

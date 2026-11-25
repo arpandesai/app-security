@@ -47,12 +47,17 @@ The codebase never leaves the user's machine. Only rule results, file paths, sho
 | `PUBLIC_BASE_URL` | No | Defaults to `https://app-security.mobilefirst.in`. Used to build report links. |
 | `LEAD_WEBHOOK_URL` | Recommended | Every lead is POSTed here as JSON with a `text` field, so a Slack incoming webhook works as is. Zapier and Make work too. |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Yes (prod) | Sends sign-in codes and the "Email me the report" email through Resend. `EMAIL_FROM` must use your verified Resend domain, e.g. `MobileFirst Secure <secure@mobilefirst.in>`. Without these, nobody can sign up or sign in. |
-| `LEAD_NOTIFY_EMAIL` | No | Also email every lead to this address (needs Resend). |
+| `LEAD_NOTIFY_EMAIL` | No | Also email every lead and booking click to this address (needs Resend). |
+| `BOOKING_URL` | No | Where every "Get it fixed" and "Need help" button leads. Defaults to the MobileFirst Google Calendar booking page. |
 | `REPORT_TTL_DAYS` | No | How long report links stay live. Default: 90. |
 | `ADMIN_PASSWORD` | Yes (prod) | Password for `/admin` (HTTP basic auth, any username). Without it, the admin page returns 404. |
-| `SUPPORT_EMAIL` | Recommended | Shown to customers whose URL has been switched off. |
+| `SUPPORT_EMAIL` | No | Not shown to customers any more: fix, help and switched-off messages all point to `BOOKING_URL`. |
 
 All leads are also stored in the Redis list `leads`, which you can read in the Upstash console.
+
+### Booking calls
+
+Every fix and help action books a call: **Get it fixed** on the report and on each app, **Get this fixed** on each finding, **Need help installing?** on the setup page, the panel's help card, the agent's chat summary after an audit, and the messages for a missing, wrong or switched-off URL. All of them link to `/go/book?from=<source>&r=<report id>`, which stores the click in the Redis list `booking_clicks` (source, report, app, verdict, score, and the customer's email when signed in), sends it to `LEAD_WEBHOOK_URL` / `LEAD_NOTIFY_EMAIL`, then redirects to `BOOKING_URL`. So when someone books, you already know which report they came from.
 
 Check the deployment at `/api/health`: `{"ok":true,"storage":"redis"}` means audits are being stored correctly. A 503 with `"storage":"memory"` means Redis isn't connected.
 
@@ -62,7 +67,11 @@ The smallest setup that gives every customer a dashboard and gives MobileFirst c
 
 1. **Sign up** on the landing page: name, company (optional), email. A 6-digit code is emailed through Resend. The account is created only after the code is entered, so every account is a verified inbox. Signing up again with an existing email just signs that person in.
 2. **Sign in** at `/login`: email, then a code. Codes expire after 10 minutes, allow 5 attempts, work once, and can be re-sent every 30 seconds. A session cookie (HttpOnly, 30 days) keeps the customer signed in.
-3. **Dashboard** at `/dashboard`: the customer's personal MCP URL with setup steps for Claude Code, Claude, Codex, ChatGPT, Cursor and VS Code, plus every audit they've run with verdict, score and report link.
+3. **Customer panel** at `/dashboard`, with four pages:
+   - **Overview:** one card per app (grouped by app name) with the latest score, verdict, issue counts, **Get it fixed** and **Open report**; recent audits below. Before the first audit, a three-step start guide with a "Book a call" link for setup help.
+   - **Audits:** every audit, newest first. Reports open inside the panel at `/dashboard/reports/<id>`, only for the account that ran them, with a shareable link and Save as PDF.
+   - **Setup:** the personal MCP URL with steps for Claude Code, Claude, Codex, ChatGPT, Cursor and VS Code, plus **Need help installing?**
+   - **Account:** edit name and company.
 4. **Personal MCP URL**, `/mcp/<token>`. The token in the URL identifies the customer, so it works in every client, including ChatGPT and the Claude app, which can't send custom auth headers. Audits started through it are saved to the account.
 5. The shared URL `/mcp` still connects, but `audit` replies with a link to sign up. Unknown or switched-off URLs get a clear message too.
 6. **Admin** at `/admin` (password: `ADMIN_PASSWORD`): every customer with company, email, signup date, audit count and last audit, a view of each customer's audits, and **Switch off / Turn on** for their URL. Switching off takes effect on the next request.
@@ -133,19 +142,22 @@ MFS_URL=http://localhost:3000 ADMIN_PASSWORD=test npm run test:e2e
 
 To test the Redis code path too, run `node scripts/mock-upstash.mjs &` (a local stand-in for the Upstash REST API) and start the server with `KV_REST_API_URL=http://localhost:8788 KV_REST_API_TOKEN=test`. Run this whenever `lib/store.ts` changes.
 
-The test covers: sign-up by emailed code (wrong, reused and throttled codes, invalid and bot sign-ups), sessions and sign-out, the shared and unknown URLs pointing users to sign up, tool and prompt discovery, stack detection, rejection of invalid submissions, category-by-category submission, server-side secret masking, dependency CVEs, the registry check for invented packages, the report page, lead capture, the dashboard, the admin page (password, customer list, switching a URL off and on), parallel submissions, and the fallback when OSV is unreachable.
+The test covers: sign-up by emailed code (wrong, reused and throttled codes, invalid and bot sign-ups), sessions and sign-out, the shared and unknown URLs pointing users to sign up, tool and prompt discovery, stack detection, rejection of invalid submissions, category-by-category submission, server-side secret masking, dependency CVEs, the registry check for invented packages, the report page, lead capture, booking links and click logging, the customer panel (overview, audits, owner-only report view, setup, account edits), the admin page (password, customer list, switching a URL off and on), parallel submissions, and the fallback when OSV is unreachable.
 
 ## Project layout
 
 ```
 app/mcp/route.ts        Shared MCP endpoint: asks users to get their personal URL
 app/mcp/[token]/        Personal MCP endpoint (mcp-handler, MCP SDK v2)
-app/dashboard/          Customer dashboard (signed in): MCP URL setup + audit list
+app/dashboard/          Customer panel (signed in): overview, audits, report, setup, account
+app/report-body.tsx     The report, shared by the public link and the panel
+app/go/book/route.ts    Logs a booking click, then redirects to BOOKING_URL
+app/api/account/        Saves name and company
 app/login/              Sign in by emailed code
 app/api/auth/           Send code, verify code, sign out
 app/admin/              Admin: customers, their audits, switch URLs off and on
 middleware.ts           Basic auth for /admin
-app/r/[id]/             Report page with lead forms
+app/r/[id]/             Shareable report page with the email form
 app/api/lead/route.ts   Lead capture, webhook, Resend email
 app/page.tsx            Minimal landing page with the sign-up form
 lib/rules/              Rule catalog; meta.ts holds levels and standards
@@ -159,6 +171,7 @@ lib/mask.ts             Secret masking for evidence snippets
 lib/accounts.ts         Accounts, tokens, per-account audit list
 lib/auth.ts             Email codes and sessions
 lib/email.ts            Resend
+lib/notify.ts           Team notifications (webhook, email) for leads and booking clicks
 lib/store.ts            Upstash Redis (or in-memory for dev)
 ```
 
