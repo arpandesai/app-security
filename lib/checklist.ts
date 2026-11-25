@@ -1,27 +1,39 @@
 import type { Profile, Rule, RuleVariant } from "./types";
-import { ALL_RULES, CATEGORIES } from "./rules";
-import { EXCLUDE } from "./rules/globs";
+import { ALL_RULES, CATEGORIES, viewRule } from "./rules";
+import { excludeFor, MOBILE_ONLY_GLOBS, splitGlobs } from "./rules/globs";
+import { platformKinds } from "./detect";
+
+export { splitGlobs };
 
 export interface PlannedRule {
   rule: Rule;
   variants: RuleVariant[];
 }
 
-/** Rules (with only their applicable variants) for a detected profile, in category order. */
+/**
+ * Rules (with only their applicable variants) for a detected profile, in category order.
+ * A rule runs when it covers one of the project's platforms (mobile, web) and has a variant for its stack.
+ * Web-only projects get web wording, and mobile file types are dropped from shared variants.
+ */
 export function planRules(profile: Profile): PlannedRule[] {
   const active = new Set(profile.targets);
+  const kinds = platformKinds(profile);
+  const webOnly = kinds.web && !kinds.mobile;
   const planned: PlannedRule[] = [];
   for (const cat of CATEGORIES) {
     for (const rule of ALL_RULES.filter((r) => r.category === cat.id)) {
-      const variants = rule.variants.filter((v) => active.has(v.target));
-      if (variants.length) planned.push({ rule, variants });
+      if (!(rule.platforms || ["mobile"]).some((k) => kinds[k])) continue;
+      let variants = rule.variants.filter((v) => active.has(v.target));
+      if (webOnly) {
+        variants = variants
+          .map((v) => ({ ...v, lookIn: v.lookIn.flatMap(splitGlobs).filter((g) => !MOBILE_ONLY_GLOBS.has(g)) }))
+          .filter((v) => v.lookIn.length);
+      }
+      if (variants.length) planned.push({ rule: viewRule(rule, kinds), variants });
     }
   }
   return planned;
 }
-
-/** Split comma-separated glob lists without breaking brace sets such as *.{js,ts}. */
-export const splitGlobs = (g: string) => g.split(/,(?![^{]*\})/).map((x) => x.trim()).filter(Boolean);
 
 const list = (xs: string[]) => xs.map((x) => "`" + x + "`").join(", ");
 
@@ -55,13 +67,14 @@ export function renderChecklist(planned: PlannedRule[]): string {
   return out.join("\n");
 }
 
-export function agentInstructions(auditId: string, total: number): string {
+export function agentInstructions(auditId: string, total: number, profile?: Profile): string {
+  const skip = excludeFor(profile ? platformKinds(profile) : { mobile: true, web: true });
   return [
     `Audit ID: ${auditId}`,
     "",
     "HOW TO RUN THIS AUDIT (read-only — do not modify any file):",
     `1. Work through the ${total} checks below, one category at a time. Use your own file search/read tools on this repository.`,
-    `   Skip third-party and generated folders: ${EXCLUDE.join(", ")}.`,
+    `   Skip third-party and generated folders: ${skip.join(", ")}.`,
     "   Search terms are PCRE-style regex starting points (use rg --pcre2 or grep -P); always read the surrounding code before deciding.",
     "2. Give every check exactly one status:",
     "   - fail: the issue is present. Include evidence: file path, line number, and the offending line(s) as snippet (max 3 lines).",

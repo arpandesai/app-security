@@ -1,12 +1,13 @@
-import type { Category, Rule } from "../types";
+import type { Category, PlatformKind, Rule } from "../types";
 import { SECRETS_RULES, BACKEND_RULES } from "./secrets";
 import { STORAGE_RULES, CRYPTO_RULES, AUTH_RULES } from "./data";
 import { NETWORK_RULES, PLATFORM_RULES } from "./platform";
 import { CODE_RULES, RESILIENCE_RULES, PRIVACY_RULES } from "./code";
 import { AI_RULES } from "./ai";
+import { WEB_SUPPORT, WEB_RULES } from "./web";
 import { META } from "./meta";
 
-export const RULESET_VERSION = "2026.11.2";
+export const RULESET_VERSION = "2026.11.3";
 
 /** Category order = the order the agent works through them. Names never contain "and" or "&". */
 export const CATEGORIES: { id: Category; name: string }[] = [
@@ -37,7 +38,21 @@ export const ALL_RULES: Rule[] = [
   ...CODE_RULES,
   ...PRIVACY_RULES,
   ...RESILIENCE_RULES,
+  ...WEB_RULES,
 ];
+
+// Platforms: web-only rules say so themselves; shared rules gain web variants and wording; everything else is mobile only.
+for (const r of ALL_RULES) {
+  const w = WEB_SUPPORT[r.id];
+  if (w) {
+    if (w.mobileOnlyAny) r.variants = r.variants.map((v) => (v.target === "any" ? { ...v, target: "mobile" as const } : v));
+    r.variants = [...r.variants, ...(w.variants || [])];
+    if (w.web) r.web = w.web;
+    r.platforms = ["mobile", "web"];
+  } else if (!r.platforms) {
+    r.platforms = ["mobile"];
+  }
+}
 
 // Attach level + standards crosswalk; trust-level rules only apply to high-value apps.
 for (const r of ALL_RULES) {
@@ -55,7 +70,27 @@ export const getRule = (id: string) => BY_ID.get(id);
 
 // Guard against accidental duplicates or banned words in titles.
 for (const r of ALL_RULES) {
-  if (/\band\b|&/i.test(r.title)) throw new Error(`Rule title must not contain "and"/"&": ${r.id}`);
+  for (const t of [r.title, r.web?.title]) {
+    if (t && /\band\b|&/i.test(t)) throw new Error(`Rule title must not contain "and"/"&": ${r.id}`);
+  }
+}
+for (const id of Object.keys(WEB_SUPPORT)) if (!BY_ID.has(id)) throw new Error(`rules/web.ts lists unknown rule ${id}`);
+
+/** Which standards belong to which platform. Everything else (ASVS, API, LLM, Agentic) applies to both. */
+const MOBILE_STANDARD = /^Mobile Top 10/;
+const WEB_STANDARD = /^Top 10 2025/;
+
+/**
+ * A rule as the audited project should see it. Web-only projects get web wording and web standards;
+ * mobile-only projects get mobile standards; projects with both keep the default wording and all standards.
+ */
+export function viewRule(rule: Rule, kinds: Record<PlatformKind, boolean>): Rule {
+  const webOnly = kinds.web && !kinds.mobile;
+  const mobileOnly = kinds.mobile && !kinds.web;
+  const standards = (rule.standards || []).filter(
+    (s) => !(webOnly && MOBILE_STANDARD.test(s)) && !(mobileOnly && WEB_STANDARD.test(s))
+  );
+  return webOnly && rule.web ? { ...rule, ...rule.web, standards } : { ...rule, standards };
 }
 if (BY_ID.size !== ALL_RULES.length) throw new Error("Duplicate rule IDs in catalog");
 for (const id of Object.keys(META)) if (!BY_ID.has(id)) throw new Error(`rules/meta.ts lists unknown rule ${id}`);

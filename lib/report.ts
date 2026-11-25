@@ -1,5 +1,6 @@
 import type { AuditSession, CheckResult, Evidence, Finding, Report, Severity, Verdict } from "./types";
-import { getRule, categoryName } from "./rules";
+import { getRule, categoryName, viewRule } from "./rules";
+import { platformKinds } from "./detect";
 import type { DepScan } from "./osv";
 import type { RegistryScan } from "./registry";
 import { BRAND, bookHref } from "./config";
@@ -28,9 +29,12 @@ export function buildReport(
   const passed: Report["passed"] = [];
   const notApplicable: Report["notApplicable"] = [];
 
+  // Web-only apps get web wording and web standards; see viewRule.
+  const kinds = platformKinds(session.profile);
   for (const id of session.ruleIds) {
-    const rule = getRule(id);
-    if (!rule) continue;
+    const raw = getRule(id);
+    if (!raw) continue;
+    const rule = viewRule(raw, kinds);
     const r = results[id];
 
     if (rule.serverEvaluated) {

@@ -3,13 +3,30 @@
 /** What a rule variant applies to. Detected per project from its files and dependencies. */
 export type Target =
   | "any"
+  | "mobile"
+  | "web"
   | "react-native"
   | "expo"
   | "flutter"
   | "android"
   | "ios"
+  | "nextjs"
+  | "react-web"
   | "firebase"
   | "supabase";
+
+/** Mobile apps (Android, iOS) or web apps. A rule runs only on the platforms it lists. */
+export type PlatformKind = "mobile" | "web";
+
+/** Wording for web-only audits, where the mobile wording ("download your app") doesn't fit. */
+export interface WebText {
+  title?: string;
+  check?: string;
+  failIf?: string;
+  passIf?: string;
+  founder?: string;
+  fix?: string;
+}
 
 export type Severity = "critical" | "high" | "medium" | "low";
 
@@ -68,6 +85,10 @@ export interface Rule {
   serverEvaluated?: boolean;
   /** Only applies to apps handling money, health or identity data (level "trust"). */
   highValueOnly?: boolean;
+  /** Platforms the rule covers. Set in rules/index.ts; mobile only unless the rule has web support. */
+  platforms?: PlatformKind[];
+  /** Web wording, used when the audited project is a web app only. */
+  web?: WebText;
 }
 
 export type Status = "fail" | "pass" | "not_applicable" | "unable_to_check";
@@ -92,8 +113,8 @@ export interface Dependency {
 }
 
 export interface Profile {
-  frameworks: ("react-native" | "flutter" | "native")[];
-  platforms: ("android" | "ios")[];
+  frameworks: ("react-native" | "flutter" | "native" | "nextjs" | "react-web")[];
+  platforms: ("android" | "ios" | "web")[];
   targets: Target[];
   backends: ("firebase" | "supabase")[];
   label: string;
