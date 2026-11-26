@@ -5,6 +5,7 @@ export type Live = "connect" | "audit";
 
 export interface GuideStep {
   title: string;
+  /** Text shown under the title. Words in `backticks` are shown as code. */
   body: string;
   /** Text to copy, built from the customer's personal MCP URL. */
   code?: (url: string) => string;
@@ -31,15 +32,15 @@ const CD: GuideStep = {
   code: () => "cd path/to/your-app",
 };
 
-const AUDIT = (approve: string): GuideStep => ({
+/** The last step. `where` says where to type when it isn't obvious; `approve` says how to allow the tools. */
+const AUDIT = (approve: string, where?: string): GuideStep => ({
   title: "Type audit",
-  body: `Type audit and send it. ${approve} The audit takes a few minutes, only reads your code, and your code never leaves your machine.`,
+  body: `${where ? `${where}, type` : "Type"} \`audit\` and send it. ${approve} The audit takes a few minutes, only reads your code, and your code never leaves your machine.`,
   code: () => "audit",
   live: "audit",
 });
 
 const jsonCursor = (u: string) => JSON.stringify({ mcpServers: { "mobilefirst-secure": { url: u } } }, null, 2);
-const jsonVsCode = (u: string) => JSON.stringify({ servers: { "mobilefirst-secure": { type: "http", url: u } } }, null, 2);
 
 export const AGENT_TOOLS: AgentTool[] = [
   {
@@ -95,7 +96,7 @@ export const AGENT_TOOLS: AgentTool[] = [
     steps: [
       {
         title: "Add MobileFirst Secure",
-        body: "In the ChatGPT desktop app, open Settings → MCP servers → Add server → Streamable HTTP. Paste your link and choose no authentication. This page confirms when it connects.",
+        body: "In the ChatGPT desktop app, open Settings → MCP servers → Add server → `Streamable HTTP`. Paste your link and choose no authentication. This page confirms when it connects.",
         code: (u) => u,
         live: "connect",
       },
@@ -124,7 +125,7 @@ export const AGENT_TOOLS: AgentTool[] = [
         title: "Give Claude your code",
         body: "In the desktop app, use + → Add folder and pick your app's project folder. Or connect your GitHub repository.",
       },
-      AUDIT("Start a new chat with the MobileFirst Secure connector turned on. Allow it when Claude asks."),
+      AUDIT("Allow MobileFirst Secure when Claude asks.", "Start a new chat with the MobileFirst Secure connector turned on"),
     ],
   },
   {
@@ -136,35 +137,36 @@ export const AGENT_TOOLS: AgentTool[] = [
     steps: [
       {
         title: "Add MobileFirst Secure to your project",
-        body: "Open your app's project in Cursor. Create a file named .cursor/mcp.json in the project folder and paste this in.",
+        body: "Open your app's project in Cursor. Create a file named `.cursor/mcp.json` in the project folder and paste this in.",
         code: jsonCursor,
       },
       {
         title: "Check it's switched on",
-        body: "Open Cursor Settings and find MCP. mobilefirst-secure should show as enabled. This page confirms when it connects.",
+        body: "Open Cursor Settings and find MCP. `mobilefirst-secure` should show as enabled. This page confirms when it connects.",
         live: "connect",
       },
-      AUDIT("Use the Agent chat, and run the MobileFirst Secure tools when Cursor asks."),
+      AUDIT("Run the MobileFirst Secure tools when Cursor asks.", "Open the Agent chat"),
     ],
   },
   {
     id: "vscode",
     name: "VS Code",
     kind: "Editor, Copilot",
-    how: "Add to .vscode/mcp.json (GitHub Copilot agent mode):",
-    snippet: jsonVsCode,
+    how: "In VS Code, open the Command Palette (Cmd/Ctrl+Shift+P), run MCP: Add Server, choose HTTP and paste:",
+    snippet: (u) => u,
+    step2: "Run MCP: List Servers, pick mobilefirst-secure, choose Start Server, then open Copilot Chat in Agent mode and type",
     steps: [
       {
-        title: "Add MobileFirst Secure to your project",
-        body: "Open your app's project in VS Code. Create a file named .vscode/mcp.json in the project folder and paste this in.",
-        code: jsonVsCode,
+        title: "Add MobileFirst Secure",
+        body: "Open your app's project in VS Code. Open the Command Palette (Cmd+Shift+P on Mac, Ctrl+Shift+P on Windows), run `MCP: Add Server` and choose `HTTP`. Paste your link, and name the server `mobilefirst-secure`.",
+        code: (u) => u,
       },
       {
-        title: "Start the server",
-        body: "In mcp.json, click Start above mobilefirst-secure. This page confirms when it connects.",
+        title: "Start it",
+        body: "In the Command Palette, run `MCP: List Servers`, pick `mobilefirst-secure` and choose `Start Server`. If VS Code asks whether you trust it, confirm. This page confirms when it connects.",
         live: "connect",
       },
-      AUDIT("Use Copilot Chat in Agent mode, and allow the MobileFirst Secure tools when asked."),
+      AUDIT("When it asks to use the MobileFirst Secure tools, allow them.", "Open Copilot Chat (Ctrl+Alt+I, or Ctrl+Cmd+I on Mac), set the mode to `Agent`"),
     ],
   },
   {

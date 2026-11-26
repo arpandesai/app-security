@@ -410,4 +410,5 @@ ul.audits li:first-child{border-top:0;padding-top:0}
 .pn-part-head b{font-size:15px}
 .pn-part-head .muted{font-size:13.5px}
 .ng-next{flex-basis:100%;margin:4px 0 0!important;font-size:14.5px!important;color:var(--ink-2)!important}
+.ng-body p code{font:13.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#eef2f8;color:var(--ink);border-radius:5px;padding:1px 5px;white-space:nowrap}
 `;

@@ -100,7 +100,7 @@ Customers copy setup steps with their personal URL from their dashboard. The pat
 | Codex (CLI, IDE extension) | `codex mcp add mobilefirst-secure --url <URL>` |
 | ChatGPT | In the ChatGPT desktop app: Settings → MCP servers → Add server → Streamable HTTP → paste the URL, no authentication. ChatGPT chat on the web can't see a local codebase, so the desktop app (through Codex) is the path for code audits. |
 | Cursor | `.cursor/mcp.json`: `{"mcpServers":{"mobilefirst-secure":{"url":"<URL>"}}}` |
-| VS Code (Copilot) | `.vscode/mcp.json`: `{"servers":{"mobilefirst-secure":{"type":"http","url":"<URL>"}}}` |
+| VS Code (Copilot) | Command Palette → `MCP: Add Server` → HTTP → paste `<URL>`, name it `mobilefirst-secure`; then `MCP: List Servers` → `mobilefirst-secure` → Start Server |
 | Others | Any MCP client that supports Streamable HTTP. |
 
 In clients that show MCP prompts as slash commands, the `audit` prompt also appears. In Claude Code it's `/mcp__mobilefirst-secure__audit`. Typing plain "audit" works everywhere, because the server's instructions tell the agent to start the audit.
