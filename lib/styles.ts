@@ -411,4 +411,23 @@ ul.audits li:first-child{border-top:0;padding-top:0}
 .pn-part-head .muted{font-size:13.5px}
 .ng-next{flex-basis:100%;margin:4px 0 0!important;font-size:14.5px!important;color:var(--ink-2)!important}
 .ng-body p code{font:13.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#eef2f8;color:var(--ink);border-radius:5px;padding:1px 5px;white-space:nowrap}
+/* Need help setting up? Request a call */
+.cm{background:#f5f8ff;border-color:#c9d7fb}
+.cm-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.cm-top .pn-h2{margin:0}
+.cm-live{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:#067647;background:#ecfdf3;border:1px solid #abefc6;border-radius:999px;padding:3px 10px}
+.cm-dot{width:8px;height:8px;border-radius:50%;background:#17b26a;animation:cmpulse 2s ease-out infinite}
+@keyframes cmpulse{0%{box-shadow:0 0 0 0 rgba(23,178,106,.45)}70%{box-shadow:0 0 0 7px rgba(23,178,106,0)}100%{box-shadow:0 0 0 0 rgba(23,178,106,0)}}
+@media(prefers-reduced-motion:reduce){.cm-dot{animation:none}}
+.cm-lead{margin:8px 0 14px;color:var(--ink-2);font-size:15.5px}
+.cm-form{display:grid;gap:10px 12px;grid-template-columns:minmax(0,1fr)}
+@media(min-width:760px){.cm-form{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:end}}
+.cm-form label{display:flex;flex-direction:column;gap:5px;font-size:13.5px;font-weight:600;color:var(--ink-2)}
+.cm-form input{font:inherit;font-weight:400;font-size:15.5px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);min-width:0}
+.cm-form input:focus-visible{outline:3px solid #7aa2ff;outline-offset:1px;border-color:var(--brand)}
+.cm-form .btn{height:46px;white-space:nowrap}
+.cm-note{margin:10px 0 0;font-size:13px;color:var(--ink-3)}
+.cm-error{margin:10px 0 0;font-size:14px;color:#b42318}
+.cm-done{margin:10px 0 0;font-size:15.5px;line-height:1.5;color:#067647;font-weight:600}
+.ng-stuck{margin:0;font-size:14.5px;color:var(--ink-3)}
 `;

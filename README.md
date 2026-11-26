@@ -48,6 +48,8 @@ The codebase never leaves the user's machine. Only rule results, file paths, sho
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Yes (prod) | Upstash Redis, added by the Marketplace integration. Prefixed names (`<PREFIX>_KV_REST_API_URL`) and `UPSTASH_REDIS_REST_URL`/`_TOKEN` also work. Without Redis on Vercel, audits are refused with a clear message: parallel requests hit different server instances, so in-memory storage loses audits. |
 | `PUBLIC_BASE_URL` | No | Defaults to `https://app-security.mobilefirst.in`. Used to build report links. |
 | `LEAD_WEBHOOK_URL` | Recommended | Every booking click is POSTed here as JSON with a `text` field, so a Slack incoming webhook works as is. Zapier and Make work too. |
+| `SUPPORT_HOURS` | No | When engineers can call back within minutes, e.g. `Mon-Sat 10:00-19:00 Asia/Kolkata` (the default). During these hours "Need help setting up?" shows **Live now** and promises a call in under 2 minutes; outside them it says when the call will come, in the customer's own time. |
+| `SUPPORT_CALL_EMAIL` | No | Where call requests are emailed. Defaults to `nishant@mobilefirst.in`. They also go to `LEAD_WEBHOOK_URL` when set, which is faster for a 2-minute promise. |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Yes (prod) | Sends sign-in codes and reviewer invites through Resend. `EMAIL_FROM` must use your verified Resend domain, e.g. `MobileFirst Secure <secure@mobilefirst.in>`. Without these, nobody can sign up or sign in. |
 | `LEAD_NOTIFY_EMAIL` | No | Also email every booking click to this address (needs Resend). |
 | `BOOKING_URL` | No | Where every "Get it fixed" and "Need help" button leads. Defaults to the MobileFirst Google Calendar booking page. |
@@ -57,7 +59,9 @@ The codebase never leaves the user's machine. Only rule results, file paths, sho
 
 ### Booking calls
 
-Every fix and help action books a call: **Get it fixed** on the report and on each app, **Get this fixed** on each finding, **Need help installing?** on the setup page, the panel's help card, the agent's chat summary after an audit, and the messages for a missing, wrong or switched-off URL. All of them link to `/go/book?from=<source>&r=<report id>`, which stores the click in the Redis list `booking_clicks` (source, report, app, verdict, score, and the customer's email when signed in), sends it to `LEAD_WEBHOOK_URL` / `LEAD_NOTIFY_EMAIL`, then redirects to `BOOKING_URL`. So when someone books, you already know which report they came from.
+**Need help setting up?** Signed-in customers can ask an engineer to call them, from the top of the Run a new audit guide and the Setup page (the first-run screen links there too). They give a name and a phone number; `/api/callback` validates it (country code expected), allows one request per two minutes and three per hour per account, stores it in the Redis list `callback_requests`, and emails `SUPPORT_CALL_EMAIL` with everything needed before dialling: tap-to-call and WhatsApp links, account email and company, the AI tool picked in the guide, whether the agent has connected, the latest audit's progress, and the customer's local time.
+
+Every fix and help action books a call: **Get it fixed** on the report and on each app, **Get this fixed** on each finding, the panel's help card, the agent's chat summary after an audit, and the messages for a missing, wrong or switched-off URL. All of them link to `/go/book?from=<source>&r=<report id>`, which stores the click in the Redis list `booking_clicks` (source, report, app, verdict, score, and the customer's email when signed in), sends it to `LEAD_WEBHOOK_URL` / `LEAD_NOTIFY_EMAIL`, then redirects to `BOOKING_URL`. So when someone books, you already know which report they came from.
 
 Check the deployment at `/api/health`: `{"ok":true,"storage":"redis"}` means audits are being stored correctly. A 503 with `"storage":"memory"` means Redis isn't connected.
 

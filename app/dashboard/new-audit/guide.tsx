@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AGENT_TOOLS, type GuideStep } from "../../agent-tools";
+import { CallMe } from "../call-me";
 
 export interface GuideActivity {
   connection: { client: string; label: string; at: string } | null;
@@ -71,7 +72,26 @@ function Waiting({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function AuditGuide({ url, serverNow, initial, helpHref }: { url: string; serverNow: number; initial: GuideActivity; helpHref: string }) {
+export interface CallProps {
+  defaultName: string;
+  live: boolean;
+  nextOpening: string | null;
+  within: string;
+}
+
+export function AuditGuide({
+  url,
+  serverNow,
+  initial,
+  helpHref,
+  call,
+}: {
+  url: string;
+  serverNow: number;
+  initial: GuideActivity;
+  helpHref: string;
+  call: CallProps;
+}) {
   const [since, setSince] = useState(serverNow - GRACE_MS);
   const [activity, setActivity] = useState(initial);
   const [toolId, setToolId] = useState(AGENT_TOOLS[0].id);
@@ -173,6 +193,8 @@ export function AuditGuide({ url, serverNow, initial, helpHref }: { url: string;
 
   return (
     <>
+      <CallMe {...call} tool={toolId} page="/dashboard/new-audit" />
+
       <section className="card">
         <h2 className="pn-h2">Which AI tool do you code with?</h2>
         <div className="ng-tools" role="radiogroup" aria-label="Your AI coding tool">
@@ -226,17 +248,13 @@ export function AuditGuide({ url, serverNow, initial, helpHref }: { url: string;
         </ol>
       </section>
 
-      <section className="card pn-callout">
-        <div>
-          <h2 className="pn-h2">Stuck on a step?</h2>
-          <p className="muted" style={{ margin: 0 }}>
-            Book a call and a MobileFirst engineer will set it up with you, then run the audit together.
-          </p>
-        </div>
-        <a className="btn ghost" href={helpHref} target="_blank" rel="noopener">
-          Book a call
+      <p className="ng-stuck">
+        Stuck on a step? <a href="#call">Request a call</a> and we'll set it up with you, or{" "}
+        <a href={helpHref} target="_blank" rel="noopener">
+          book a time
         </a>
-      </section>
+        .
+      </p>
     </>
   );
 }

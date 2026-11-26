@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { BRAND, personalMcpUrl } from "@/lib/config";
+import { CALL_WITHIN, supportStatus } from "@/lib/support";
 import { InstallTabs } from "../../install-tabs";
 import { BookLink, Panel, requireAccount } from "../panel";
+import { CallMe } from "../call-me";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: `Setup — ${BRAND}`, robots: { index: false, follow: false } };
@@ -21,20 +23,16 @@ export default async function Setup() {
         </>
       }
     >
+      <CallMe defaultName={account.name || ""} within={CALL_WITHIN} {...supportStatus()} page="/dashboard/setup" />
+
       <section className="card">
         <InstallTabs url={personalMcpUrl(account.token)} />
         <p className="note">This URL is personal. Anyone who has it can run audits on your account, so don't share it publicly.</p>
       </section>
 
-      <section className="card pn-callout">
-        <div>
-          <h2 className="pn-h2">Need help installing?</h2>
-          <p className="muted" style={{ margin: 0 }}>
-            Book a call and a MobileFirst engineer will connect your agent with you, then run your first audit together.
-          </p>
-        </div>
-        <BookLink from="setup">Book a call</BookLink>
-      </section>
+      <p className="ng-stuck">
+        Prefer a set time? <BookLink from="setup" className="">Book a call</BookLink> and we'll connect your agent with you.
+      </p>
     </Panel>
   );
 }
