@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 const BASE = process.env.MFS_URL || "http://localhost:3000";
 const FIXTURE = new URL("../test-fixtures/payflow-expo/", import.meta.url).pathname;
 const WEB_FIXTURE = new URL("../test-fixtures/linkboard-next/", import.meta.url).pathname;
+const SERVER_FIXTURE = new URL("../test-fixtures/payflow-api/", import.meta.url).pathname;
 const MARKERS = /^(package\.json|app\.json|app\.config\.(js|ts)|next\.config\.(js|mjs|ts)|vite\.config\.(js|mjs|ts)|pubspec\.yaml|AndroidManifest\.xml|build\.gradle(\.kts)?|Info\.plist|Podfile|Package\.swift|google-services\.json|GoogleService-Info\.plist|firebase\.json|firestore\.rules|config\.toml)$/;
 
 function walk(dir, root = dir, out = []) {
@@ -76,6 +77,29 @@ const TRUTH = {
 
 const pkg = JSON.parse(readFileSync(join(FIXTURE, "package.json"), "utf8"));
 const webPkg = JSON.parse(readFileSync(join(WEB_FIXTURE, "package.json"), "utf8"));
+const serverPkg = JSON.parse(readFileSync(join(SERVER_FIXTURE, "package.json"), "utf8"));
+
+// Ground truth for the server fixture (the PayFlow app's Express server, in its own project).
+const SERVER_TRUTH = {
+  "MFS-SECRETS-04": { status: "fail", evidence: [ev(".env", 3, "OPENAI_API_KEY=sk-proj-TESTONLYserverabcdefghijklmnopqrstuv0123")] },
+  "MFS-BACKEND-04": { status: "fail", evidence: [ev("src/routes/users.js", 11, 'const { rows } = await db.query("SELECT * FROM users WHERE id = $1", [req.params.id]);')] },
+  "MFS-BACKEND-09": { status: "fail", evidence: [ev("src/index.js", 7, "app.use(cors({ origin: true, credentials: true }));")] },
+  "MFS-BACKEND-10": { status: "fail", evidence: [ev("src/index.js", 13, "const page = await require(\"axios\").get(req.query.url);")] },
+  "MFS-BACKEND-11": { status: "fail", evidence: [ev("src/routes/users.js", 16, "const user = await db.users.update(req.params.id, req.body);")] },
+  "MFS-BACKEND-12": { status: "fail", evidence: [ev("src/routes/users.js", 7, "res.json(rows[0]);")] },
+  "MFS-AUTH-07": { status: "fail", evidence: [ev("src/auth.js", 5, "req.user = jwt.decode(token);")] },
+  "MFS-AUTH-08": { status: "fail", evidence: [ev("src/routes/users.js", 5, 'router.post("/login", async (req, res) => {')] },
+  "MFS-CODE-08": { status: "fail", evidence: [ev("src/routes/users.js", 6, "db.query(\"SELECT * FROM users WHERE email = '\" + req.body.email + \"'\")")] },
+  "MFS-CODE-09": { status: "fail", evidence: [ev("src/routes/files.js", 4, 'const upload = multer({ dest: "public/uploads" });')] },
+  "MFS-RESILIENCE-01": { status: "fail", evidence: [ev("src/index.js", 18, "res.status(500).json({ error: err.message, stack: err.stack });")] },
+  "MFS-AUTH-05": { status: "not_applicable", note: "Bearer tokens only." },
+  "MFS-AUTH-06": { status: "not_applicable", note: "Bearer tokens only." },
+  "MFS-PLATFORM-05": { status: "not_applicable", note: "JSON API." },
+  "MFS-BACKEND-05": { status: "not_applicable" },
+  "MFS-AI-01": { status: "not_applicable" },
+  "MFS-AI-02": { status: "not_applicable" },
+  "MFS-AI-03": { status: "not_applicable" },
+};
 
 // Ground truth for the web fixture (Next.js with Supabase).
 const WEB_TRUTH = {
@@ -240,6 +264,7 @@ console.log("\n--- What the user sees in chat ---\n" + final.split("\n---\n")[0]
 const url = final.match(/Full report with fix guidance: (\S+)/)[1];
 const reportId = url.split("/r/")[1];
 assert.ok(final.includes(`/go/book?from=chat&r=${reportId}`), "chat summary offers a call to get it fixed");
+assert.ok(final.includes("type audit there too"), "a mobile app without server code suggests auditing its server project");
 const live = (await (await activity()).json()).audit;
 assert.equal(live.appName, "PayFlow");
 assert.equal(live.total, 45);
@@ -307,8 +332,8 @@ const webStart = textOf(
 const webId = webStart.match(/Audit ID: (\S+)/)[1];
 const webRules = [...webStart.matchAll(/^### (MFS-[A-Z]+-\d+)/gm)].map((m) => m[1]);
 assert.match(webStart, /Detected stack: Next\.js · Web · Supabase/);
-assert.equal(webRules.length, 36);
-for (const id of ["MFS-PLATFORM-05", "MFS-PLATFORM-06", "MFS-PLATFORM-07", "MFS-AUTH-05", "MFS-AUTH-06", "MFS-BACKEND-09", "MFS-BACKEND-10", "MFS-CODE-08", "MFS-BACKEND-01", "MFS-BACKEND-02"])
+assert.equal(webRules.length, 41);
+for (const id of ["MFS-PLATFORM-05", "MFS-PLATFORM-06", "MFS-PLATFORM-07", "MFS-AUTH-05", "MFS-AUTH-06", "MFS-AUTH-07", "MFS-AUTH-08", "MFS-BACKEND-09", "MFS-BACKEND-10", "MFS-BACKEND-11", "MFS-BACKEND-12", "MFS-CODE-08", "MFS-CODE-09", "MFS-BACKEND-01", "MFS-BACKEND-02"])
   assert.ok(webRules.includes(id), `${id} runs on a web app`);
 for (const id of ["MFS-STORAGE-02", "MFS-NETWORK-03", "MFS-PLATFORM-01", "MFS-PLATFORM-04", "MFS-CODE-06", "MFS-PRIVACY-05", "MFS-RESILIENCE-03", "MFS-BACKEND-03"])
   assert.ok(!webRules.includes(id), `${id} doesn't run on a Next.js app with Supabase`);
@@ -338,7 +363,59 @@ assert.match(webHtml, /Unsafe HTML rendering/);
 assert.match(webHtml, /Top 10 2025: A05 Injection/);
 assert.ok(!webHtml.includes("Mobile Top 10"), "a web-only report doesn't list mobile standards");
 assert.ok(!webHtml.includes("TESTONLYwebabcdefghij"), "live secret must be masked");
+assert.ok(!webFinal.includes("type audit there too"), "a Next.js app carries its own server code: no server suggestion");
 ok(`web report: ${webFinal.match(/Score (\d+)/)[1]}/100, web titles, web standards only, secret masked`);
+
+// The app's Node.js server, in its own project: server checks only, server wording, grouped under the app.
+const srvStart = textOf(
+  await client.callTool({
+    name: "audit",
+    arguments: {
+      project_files: walk(SERVER_FIXTURE),
+      dependency_names: Object.keys(serverPkg.dependencies),
+      app_name: "PayFlow API",
+      app_description: "API for the PayFlow app",
+      agent: "Claude Code",
+    },
+  })
+);
+const srvId = srvStart.match(/Audit ID: (\S+)/)[1];
+const srvRules = [...srvStart.matchAll(/^### (MFS-[A-Z]+-\d+)/gm)].map((m) => m[1]);
+assert.match(srvStart, /Detected stack: Node\.js \(Express\) · Server/);
+assert.equal(srvRules.length, 34);
+for (const id of ["MFS-SECRETS-04", "MFS-BACKEND-04", "MFS-BACKEND-09", "MFS-BACKEND-10", "MFS-BACKEND-11", "MFS-BACKEND-12", "MFS-AUTH-07", "MFS-AUTH-08", "MFS-CODE-08", "MFS-CODE-09", "MFS-RESILIENCE-01"])
+  assert.ok(srvRules.includes(id), `${id} runs on a Node.js server`);
+for (const id of ["MFS-SECRETS-01", "MFS-SECRETS-02", "MFS-BACKEND-01", "MFS-STORAGE-01", "MFS-STORAGE-02", "MFS-PLATFORM-01", "MFS-RESILIENCE-02", "MFS-PRIVACY-03", "MFS-PRIVACY-05", "MFS-CODE-06"])
+  assert.ok(!srvRules.includes(id), `${id} doesn't run on a server`);
+assert.match(srvStart, /### MFS-SECRETS-04 · medium · Secrets committed to the repo/);
+assert.ok(!/\.dart|Info\.plist|\.gradle|\{kt,java\}|pubspec|Podfile|Pods/.test(srvStart), "no mobile file types or folders in a server checklist");
+ok(`server: ${srvRules.length} checks, server-side checks in, app-only checks out, server wording`);
+
+let srvFinal = "";
+for (const id of srvRules) {
+  if (id === "MFS-CODE-01") continue;
+  const args = { audit_id: srvId, results: [{ rule_id: id, ...(SERVER_TRUTH[id] || { status: "pass" }) }] };
+  if (id === "MFS-CODE-07") args.dependencies = Object.entries(serverPkg.dependencies).map(([name, version]) => ({ ecosystem: "npm", name, version }));
+  const out = textOf(await client.callTool({ name: "submit_findings", arguments: args }));
+  if (out.includes("Full report")) srvFinal = out;
+}
+if (!srvFinal) srvFinal = textOf(await client.callTool({ name: "submit_findings", arguments: { audit_id: srvId, results: [] } }));
+assert.match(srvFinal, /Not safe to launch/);
+assert.ok(!srvFinal.includes("type audit there too"), "no server suggestion on a server audit");
+const srvReportId = srvFinal.match(/Full report with fix guidance: \S+\/r\/(\S+)/)[1];
+const srvHtml = await page(`/dashboard/reports/${srvReportId}`);
+assert.match(srvHtml, /Node\.js \(Express\) · Server/);
+assert.match(srvHtml, /Request data saved straight to the database/);
+assert.match(srvHtml, /Login tokens not verified properly/);
+assert.match(srvHtml, /Top 10 2025: A07 Authentication Failures/);
+assert.ok(!srvHtml.includes("Mobile Top 10"), "a server report doesn't list mobile standards");
+assert.ok(!srvHtml.includes("TESTONLYserverabcdefghij"), "live secret must be masked");
+const overview = await page("/dashboard");
+const payflowCard = overview.slice(overview.indexOf("<h3>PayFlow</h3>"), overview.indexOf("</article>", overview.indexOf("<h3>PayFlow</h3>")));
+assert.ok(payflowCard.includes("<b>App</b>") && payflowCard.includes("<b>Server</b>"), "the server report sits under the PayFlow app card");
+assert.ok(payflowCard.includes(`/dashboard/reports/${srvReportId}`), "the app card opens the server report");
+assert.ok(!overview.includes("<h3>PayFlow API</h3>"), "no separate card for the server");
+ok(`server report: ${srvFinal.match(/Score (\d+)/)[1]}/100, server wording, web standards, grouped under the PayFlow app`);
 
 // Invite a reviewer: they get an email, sign up with that address, return to the report, and can read it.
 const reviewers = (body, c = cookie, headers = {}) =>

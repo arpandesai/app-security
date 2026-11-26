@@ -7,14 +7,14 @@ import { getRule, categoryName, RULESET_VERSION } from "./rules";
 import { cleanSnippet } from "./mask";
 import { scanDependencies } from "./osv";
 import { checkRegistries } from "./registry";
-import { buildReport, chatSummary } from "./report";
+import { buildReport, chatSummary, suggestServerAudit } from "./report";
 import { kv, TTL, storageReady, STORAGE_NOT_READY } from "./store";
 import { BASE_URL, BRAND, bookHref, newId } from "./config";
 import { addAccountReport, type Access } from "./accounts";
 import { recordAuditStart } from "./activity";
 import { sessionKey, resultsKey, depsKey, reportLockKey, reportKey } from "./audit-keys";
 
-export const SERVER_INSTRUCTIONS = `${BRAND} runs a read-only security audit of an app's source code: mobile apps (React Native/Expo, Flutter, native Android, native iOS) and web apps (Next.js, React). The audit runs entirely inside your coding agent on the user's machine: this server supplies the rules and writes the report.
+export const SERVER_INSTRUCTIONS = `${BRAND} runs a read-only security audit of an app's source code: mobile apps (React Native/Expo, Flutter, native Android, native iOS), web apps (Next.js, React) and their Node.js servers (Express, NestJS, Fastify, Hono, Koa). The audit runs entirely inside your coding agent on the user's machine: this server supplies the rules and writes the report.
 When the user says "audit", asks for a security audit or check, or asks whether their app is safe to launch, call the \`audit\` tool and follow its instructions until \`submit_findings\` returns the report link.
 Never modify the user's files during the audit.`;
 
@@ -22,7 +22,7 @@ const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
 const errorText = (t: string) => ({ content: [{ type: "text" as const, text: t }], isError: true });
 
 const DETECT_FILES =
-  "package.json, app.json, app.config.js, app.config.ts, next.config.js, next.config.mjs, next.config.ts, vite.config.js, vite.config.mjs, vite.config.ts, pubspec.yaml, AndroidManifest.xml, build.gradle, build.gradle.kts, Info.plist, Podfile, Package.swift, *.xcodeproj, google-services.json, GoogleService-Info.plist, firebase.json, firestore.rules, supabase/config.toml, supabase/migrations";
+  "package.json, nest-cli.json, app.json, app.config.js, app.config.ts, next.config.js, next.config.mjs, next.config.ts, vite.config.js, vite.config.mjs, vite.config.ts, pubspec.yaml, AndroidManifest.xml, build.gradle, build.gradle.kts, Info.plist, Podfile, Package.swift, *.xcodeproj, google-services.json, GoogleService-Info.plist, firebase.json, firestore.rules, supabase/config.toml, supabase/migrations";
 
 const auditInput = z.object({
   project_files: z
@@ -34,12 +34,14 @@ const auditInput = z.object({
   dependency_names: z
     .array(z.string())
     .optional()
-    .describe("Package names listed under dependencies in package.json and/or pubspec.yaml (names only)."),
+    .describe(
+      "Package names listed under dependencies in every package.json in the project (including server folders) and/or pubspec.yaml (names only)."
+    ),
   app_name: z
     .string()
     .optional()
     .describe(
-      "The app's name, read from the code: expo.name in app.json or app.config, name in pubspec.yaml, android:label (or app_name in strings.xml) in the Android app, CFBundleDisplayName / CFBundleName in Info.plist, or for a web app the site title (metadata title in the root layout, or <title> in index.html), falling back to name in package.json. Always send it: reports are grouped by app name in the user's dashboard."
+      "The app's name, read from the code: expo.name in app.json or app.config, name in pubspec.yaml, android:label (or app_name in strings.xml) in the Android app, CFBundleDisplayName / CFBundleName in Info.plist, or for a web app the site title (metadata title in the root layout, or <title> in index.html), falling back to name in package.json. For a server project, use the name of the app it serves (from the README or package.json description), not the repo name: 'PayFlow', not 'payflow-api'. Always send it: reports are grouped by app name in the user's dashboard."
     ),
   app_description: z
     .string()
@@ -155,7 +157,7 @@ export function registerMobileFirstSecure(server: McpServer, access: Access = { 
     {
       title: `${BRAND}: start security audit`,
       description:
-        `Start a ${BRAND} security audit of the app in the current project: mobile (React Native/Expo, Flutter, native Android, native iOS) or web (Next.js, React with Vite or Create React App). ` +
+        `Start a ${BRAND} security audit of the app in the current project: mobile (React Native/Expo, Flutter, native Android, native iOS), web (Next.js, React with Vite or Create React App) or the app's Node.js server (Express, NestJS, Fastify, Hono, Koa). ` +
         `Use when the user says "audit", asks for a security audit/check, or asks if the app is safe to launch. ` +
         `First list the project's marker files (${DETECT_FILES}) and the dependency names from package.json / pubspec.yaml, then call this tool. ` +
         "It returns the checklist to run locally on the code. Read-only: never modify files.",
@@ -169,8 +171,8 @@ export function registerMobileFirstSecure(server: McpServer, access: Access = { 
       const profile = detectProfile(args.project_files, args.dependency_names);
       if (!profile) {
         return text(
-          `No supported app found from these files. ${BRAND} audits mobile apps (React Native/Expo, Flutter, native Android, native iOS) and web apps (Next.js, React with Vite or Create React App). ` +
-            "Make sure you are at the project root and included files like package.json, next.config.*, vite.config.*, pubspec.yaml, AndroidManifest.xml, build.gradle, Info.plist or Podfile, plus the dependency names from package.json, then call `audit` again."
+          `No supported app found from these files. ${BRAND} audits mobile apps (React Native/Expo, Flutter, native Android, native iOS), web apps (Next.js, React with Vite or Create React App) and Node.js servers (Express, NestJS, Fastify, Hono, Koa, hapi, AdonisJS). ` +
+            "Make sure you are at the project root and included files like package.json, next.config.*, vite.config.*, nest-cli.json, pubspec.yaml, AndroidManifest.xml, build.gradle, Info.plist or Podfile, plus the dependency names from every package.json, then call `audit` again."
         );
       }
       const planned = planRules(profile);
@@ -192,6 +194,7 @@ export function registerMobileFirstSecure(server: McpServer, access: Access = { 
           appName: session.appName,
           total: session.ruleIds.length,
           startedAt: session.createdAt,
+          serverHint: suggestServerAudit(profile),
         });
       }
 
@@ -300,7 +303,7 @@ export function registerMobileFirstSecure(server: McpServer, access: Access = { 
 
       const url = reportUrl(reportId);
       return text(
-        `${chatSummary(report, url)}${problemText}\n\n---\nShow the summary above to the user exactly as written, including the link. This audit is read-only: don't change any code as part of it.`
+        `${chatSummary(report, url, suggestServerAudit(session.profile))}${problemText}\n\n---\nShow the summary above to the user exactly as written, including the link. This audit is read-only: don't change any code as part of it.`
       );
     }
   );

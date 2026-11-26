@@ -16,6 +16,8 @@ export interface CurrentAudit {
   appName: string;
   total: number;
   startedAt: string;
+  /** Suggest auditing the app's server project too (the audited project has no server code of its own). */
+  serverHint?: boolean;
 }
 export interface Activity {
   connection: Connection | null;

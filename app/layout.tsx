@@ -11,10 +11,10 @@ import { BRAND } from "@/lib/config";
 export const metadata: Metadata = {
   title: `Free app security report in 5 minutes | ${BRAND}`,
   description:
-    "Your AI coding agent checks your mobile or web app against 54 security checks. Get a verdict, a score and the exact lines to fix. Free.",
+    "Your AI coding agent checks your mobile or web app against 59 security checks. Get a verdict, a score and the exact lines to fix. Free.",
   openGraph: {
     title: "Get your app security report in 5 minutes",
-    description: "54 security checks mapped to OWASP, run by the coding agent you already use. Free. Your codebase never leaves your machine.",
+    description: "59 security checks mapped to OWASP, run by the coding agent you already use. Free. Your codebase never leaves your machine.",
     url: "https://app-security.mobilefirst.in",
     siteName: BRAND,
     type: "website",

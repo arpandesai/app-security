@@ -31,7 +31,7 @@ LAYERS = [
     ("01", "Keys", "What attackers grab first",
      "Credentials and backend controls that give direct access to data, money or infrastructure.",
      [("SECRETS", "Secret keys, AI keys, signing keys, AI tool configs, values exposed to the browser"),
-      ("BACKEND", "Supabase admin key, row-level security, Firebase rules, server-side permissions, purchases, limits on paid APIs, CORS, server-side requests")]),
+      ("BACKEND", "Supabase admin key, row-level security, Firebase rules, server-side permissions, purchases, limits on paid APIs, CORS, server-side requests, mass assignment, private fields")]),
     ("02", "Data", "Stored, sent, encrypted",
      "How user data is kept on the device or in the browser, protected in transit and encrypted.",
      [("STORAGE", "Tokens at rest, browser storage, shared files, logs, backups, local databases"),
@@ -39,12 +39,12 @@ LAYERS = [
       ("CRYPTO", "Hardcoded keys, weak ciphers, hashing, random values")]),
     ("03", "Access", "Who gets in, what they reach",
      "Identity, the app's surface to other apps, sites and the browser, and AI features acting for the user.",
-     [("AUTH", "Biometric bypass, login flow, logout, confirming sensitive changes, session cookies, CSRF"),
+     [("AUTH", "Biometric bypass, login flow, login tokens, brute force, logout, confirming sensitive changes, session cookies, CSRF"),
       ("PLATFORM", "Exported components, deep links, WebViews, sensitive data on screen, unsafe HTML, security headers, open redirects"),
       ("AI", "Unsafe AI output, prompt injection, AI acting beyond the user's permissions")]),
     ("04", "Release", "What ships to users",
      "The supply chain, store and privacy obligations, and what an attacker can learn from the shipped app or site.",
-     [("CODE", "Vulnerable libraries, fake packages, SDK targets, test leftovers, injection, remote switches"),
+     [("CODE", "Vulnerable libraries, fake packages, SDK targets, test leftovers, injection, file uploads, remote switches"),
       ("PRIVACY", "Permissions, Apple privacy manifest, tracking consent, third-party sharing, account deletion"),
       ("RESILIENCE", "Debug builds, readable code, source maps, device attestation")]),
 ]
@@ -57,9 +57,9 @@ LEVELS = [
      "Applies only when the app handles money, health or identity data. The agent judges this from the code and the app description and answers not_applicable otherwise."),
 ]
 TARGET_NAMES = {"any": "All stacks", "mobile": "Mobile stacks", "react-native": "React Native", "expo": "Expo", "flutter": "Flutter",
-                "android": "Android", "ios": "iOS", "web": "Web stacks", "nextjs": "Next.js", "react-web": "React (Vite, CRA)",
+                "android": "Android", "ios": "iOS", "web": "Web stacks", "nextjs": "Next.js", "react-web": "React (Vite, CRA)", "server": "Node.js servers",
                 "firebase": "Firebase", "supabase": "Supabase"}
-PLATFORM_NAMES = {"mobile": "Mobile", "web": "Web"}
+PLATFORM_NAMES = {"mobile": "Mobile", "web": "Web", "server": "Server"}
 SEV = ["critical", "high", "medium", "low"]
 WEIGHT = {"critical": 25, "high": 12, "medium": 5, "low": 2}
 
@@ -72,7 +72,9 @@ n_web_variants = sum(1 for r in rules for v in r["variants"] if v["target"] == "
 on = lambda r, k: k in r["platforms"]
 n_mobile = sum(1 for r in rules if on(r, "mobile"))
 n_web = sum(1 for r in rules if on(r, "web"))
-n_shared = sum(1 for r in rules if len(r["platforms"]) == 2)
+n_server = sum(1 for r in rules if on(r, "server"))
+n_all = sum(1 for r in rules if len(r["platforms"]) == 3)
+n_mobile_only = sum(1 for r in rules if r["platforms"] == ["mobile"])
 SC = {x["name"]: x["checks"] for x in D["stackCounts"]}
 
 # standards coverage, computed from the catalog
@@ -94,7 +96,8 @@ def sev_line(rs):
 def plat_line(rs):
     m = sum(1 for r in rs if on(r, "mobile"))
     w = sum(1 for r in rs if on(r, "web"))
-    return f"{m} mobile, {w} web"
+    sv = sum(1 for r in rs if on(r, "server"))
+    return f"{m} mobile, {w} web, {sv} server"
 
 
 def pill(cls, text):
@@ -190,25 +193,31 @@ def flags(r):
     return "".join(f'<p class="flag">{e(f)}</p>' for f in out)
 
 
-WEB_FIELDS = [("title", "Title"), ("check", "Inspect"), ("failIf", "Fails when"), ("passIf", "Passes when"),
+PLAT_FIELDS = [("title", "Title"), ("check", "Inspect"), ("failIf", "Fails when"), ("passIf", "Passes when"),
               ("founder", "Impact"), ("fix", "Remediation")]
 
 
-def web_wording(r):
-    w = r.get("web") or {}
-    rows = "".join(f'<div class="rk">{label}</div><div>{prose(w[k])}</div>' for k, label in WEB_FIELDS if w.get(k))
-    if not rows:
-        return ""
-    return ('<h5>Wording on web-only projects</h5><p class="wnote">Replaces the fields above when the project is a web app only. '
-            'A project with both a mobile app and a web app keeps the default wording.</p>'
-            f'<div class="rgrid wgrid">{rows}</div>')
+def platform_wording(r):
+    out = []
+    for key, heading, note in [
+        ("web", "Wording on web projects", "Replaces the fields above when the project is a web app, with or without its own server."),
+        ("server", "Wording on server projects", "Replaces the fields above when the project is a Node.js server on its own."),
+    ]:
+        w = r.get(key) or {}
+        rows = "".join(f'<div class="rk">{label}</div><div>{prose(w[k])}</div>' for k, label in PLAT_FIELDS if w.get(k))
+        if rows:
+            out.append(f'<h5>{heading}</h5><p class="wnote">{note} A project with a mobile app keeps the default wording.</p>'
+                       f'<div class="rgrid wgrid">{rows}</div>')
+    return "".join(out)
 
 
 def rule_card(r):
     tg = sorted({v["target"] for v in r["variants"]}, key=lambda t: list(TARGET_NAMES).index(t))
     tchips = "".join(f'<span class="chip sm">{e(TARGET_NAMES[t])}</span>' for t in tg)
     pchips = "".join(f'<span class="chip sm pl-{k}">{PLATFORM_NAMES[k]}</span>' for k in r["platforms"])
-    only = "" if len(r["platforms"]) == 2 else pill("only", PLATFORM_NAMES[r["platforms"][0]] + " only")
+    pl = r["platforms"]
+    only = (pill("only", PLATFORM_NAMES[pl[0]] + " only") if len(pl) == 1
+            else pill("only", "Server side") if pl == ["web", "server"] else "")
     return f'''<details class="rule" id="{e(r["id"].lower())}" data-platforms="{" ".join(r["platforms"])}">
   <summary>
     <span class="rid">{e(r["id"])}</span>
@@ -231,7 +240,7 @@ def rule_card(r):
       <div class="rk">Impact</div><div>{prose(r["founder"])}</div>
       <div class="rk">Remediation</div><div>{prose(r["fix"])}</div>
     </div>
-    {web_wording(r)}
+    {platform_wording(r)}
     <div class="refs">{refs(r)}</div>
   </div>
 </details>'''
@@ -289,7 +298,7 @@ ANATOMY = [
     ("area", "enum", "One of the 11 areas; the area fixes the layer."),
     ("severity", "enum", "critical, high, medium or low. Sets the weight and the verdict cap."),
     ("level", "enum", "launch, scale or trust. Trust checks apply only to apps handling money, health or identity data."),
-    ("platforms", "list", "mobile, web or both. A check runs when it covers one of the project's platforms; a monorepo with both runs the union."),
+    ("platforms", "list", "mobile, web, server. A check runs when it covers one of the project's platforms; a project with several runs the union."),
     ("check", "text", "What the auditor must verify, written so a coding agent can execute it on source code."),
     ("failIf", "text", "The exact condition for a fail. A fail must carry evidence: file, line and snippet."),
     ("passIf", "text", "The exact condition for a pass."),
@@ -298,7 +307,8 @@ ANATOMY = [
     ("variants[].searchFor", "regex", "Patterns that locate candidate code quickly. A match is a lead to read, not a verdict on its own."),
     ("variants[].hint", "text", "Stack-specific guidance, including when to answer not_applicable or unable_to_check."),
     ("fix", "text", "Remediation for the developer, specific to the stack where possible."),
-    ("web", "object", "Web wording for a check shared with mobile: title, check, failIf, passIf, impact and fix. Used when the project is a web app only; a project with both keeps the default wording."),
+    ("web", "object", "Web wording for a check shared with mobile: title, check, failIf, passIf, impact and fix. Used when the project is a web app, with or without its own server; a project with a mobile app keeps the default wording."),
+    ("server", "object", "Server wording, with the same fields. Used when the project is a Node.js server on its own."),
     ("refs", "lists", "OWASP MASVS v2.1 controls, MASWE weaknesses and CWE entries."),
     ("standards", "list", "Crosswalk to OWASP Top 10 2025, Mobile Top 10 2024, ASVS 5.0, API Security Top 10 2023, LLM Top 10 2025 and Agentic Top 10 2026. Web-only reports show web standards only; mobile-only reports show mobile standards only."),
     ("serverEvaluated", "flag", "The result comes from server-side data (OSV.dev), not the agent."),
@@ -327,20 +337,24 @@ def status_table():
 def scope_table():
     T = D["thresholds"]
     rows = [
-        ("Platforms", "<code>mobile</code> <code>web</code>",
-         f"{n_shared} checks cover both, {n_mobile - n_shared} are mobile only and {n_web - n_shared} are web only. Android and iOS make a project mobile; Next.js or React (Vite, Create React App) make it web. Expo's own web output counts as part of the mobile app."),
+        ("Platforms", "<code>mobile</code> <code>web</code> <code>server</code>",
+         f"{n_mobile} checks run on mobile apps, {n_web} on web apps and {n_server} on Node.js servers; {n_all} apply to all three and {n_mobile_only} are mobile only. Android and iOS make a project mobile; Next.js or React (Vite, Create React App) make it web; Express, NestJS, Fastify, Hono, Koa, hapi, AdonisJS or Restify make it a server. Expo's own web output counts as part of the mobile app, and Next.js route handlers as part of the web app."),
         ("Stack targets", " ".join(f"<code>{t}</code>" for t in TARGET_NAMES),
          "A variant runs when its target matches the detected stack. React Native and Flutter apps count as both Android and iOS. <code>any</code> runs on every stack, <code>mobile</code> on every mobile stack, <code>web</code> on every web stack."),
         ("Checks per mobile audit", f'<code>{SC["Native iOS"]}</code> – <code>{SC["Every mobile target"]}</code>',
          f'Native iOS {SC["Native iOS"]}, native Android {SC["Native Android"]}, React Native {SC["React Native"]}, Flutter with Firebase {SC["Flutter with Firebase"]}, Expo with Supabase {SC["Expo with Supabase"]}, every mobile target {SC["Every mobile target"]}.'),
         ("Checks per web audit", f'<code>{SC["React (Vite)"]}</code> – <code>{SC["Every web target"]}</code>',
          f'React with no backend {SC["React (Vite)"]}, Next.js with Supabase {SC["Next.js with Supabase"]}, React with Firebase {SC["React (Vite) with Firebase"]}, both backends {SC["Every web target"]}. A monorepo with Expo, Next.js and Supabase runs {SC["Expo and Next.js monorepo"]}.'),
-        ("Backend code", "<code>api/</code> <code>server/</code> <code>functions/</code> <code>app/**/route</code>",
-         "Server code in the same repository is checked like the app: API routes, route handlers, server actions, serverless and edge functions. Firebase and Supabase get extra checks for security rules, row-level security and admin keys. A backend kept in its own repository isn't audited yet."),
+        ("Checks per server audit", f'<code>{SC["Express server"]}</code> – <code>{SC["Every server target"]}</code>',
+         f'Express {SC["Express server"]}, NestJS with Supabase {SC["NestJS server with Supabase"]}, with both backends {SC["Every server target"]}. An Expo app with its Express server and Supabase in one repository runs {SC["Expo app with an Express server"]}.'),
+        ("Server code", "<code>src/</code> <code>routes/</code> <code>controllers/</code> <code>api/</code> <code>server/</code>",
+         "The app's server is part of the app, whether it lives in the app's repository or its own. Run the audit in each project: a server audited on its own is reported under the same app. Firebase and Supabase get extra checks for security rules, row-level security and admin keys."),
         ("Excluded on mobile", " ".join(f"<code>{e(x)}</code>" for x in D["exclude"]["mobile"]),
          "Never searched: dependencies, generated code and build output."),
         ("Excluded on web", " ".join(f"<code>{e(x)}</code>" for x in D["exclude"]["web"]),
          "Never searched: dependencies, framework build output and deployment caches."),
+        ("Excluded on server", " ".join(f"<code>{e(x)}</code>" for x in D["exclude"]["server"]),
+         "Never searched: dependencies, build output, deployment caches, uploaded files and logs."),
         ("Android target SDK", f'<code>targetSdk ≥ {T["androidTargetSdk"]}</code>', "Below this, MFS-CODE-02 fails."),
         ("Android minimum SDK", f'<code>minSdk ≥ {T["androidMinSdk"]}</code>', "Below this, MFS-CODE-02 fails."),
         ("iOS deployment target", f'<code>iOS ≥ {T["iosMinDeployment"]}</code>', "Below this, MFS-CODE-02 fails."),
@@ -375,7 +389,7 @@ def standards_table():
 
 def eval_flow():
     steps = [
-        ("Detect", "Marker files and dependency names identify frameworks, platforms (mobile, web) and backends."),
+        ("Detect", "Marker files and dependency names identify frameworks, platforms (mobile, web, server) and backends."),
         ("Plan", "Checks are selected by platform, then each check's variants by the detected stack."),
         ("Inspect", "The agent searches the listed files for the patterns, reads every match and applies the fail and pass conditions."),
         ("Verify", "The server rejects results without evidence, masks secrets and runs the dependency checks itself."),
@@ -430,11 +444,11 @@ body{{margin:0;background:#0f1729}}</style></head><body>
 <span style="font-family:'Space Grotesk';font-weight:700;font-size:20px;letter-spacing:-.01em">MobileFirst <span style="color:#5b8cff">Secure</span></span></div>
 <span style="font-size:15px;color:#9aa6bd">app-security.mobilefirst.in/framework</span></div>
 <h1 style="margin:34px 0 0;font-family:'Space Grotesk';font-weight:700;font-size:46px;line-height:1.08;letter-spacing:-.025em">The App Security Framework</h1>
-<p style="margin:14px 0 0;font-size:18px;line-height:26px;color:#c4cde0">{len(rules)} checks across 11 areas, in three levels, for mobile and web apps. Your coding agent runs them on your code with one command: <span style="color:#fff;font-weight:600">audit</span>.</p>
+<p style="margin:14px 0 0;font-size:18px;line-height:26px;color:#c4cde0">{len(rules)} checks across 11 areas, in three levels, for every part of your app: mobile, web and server. Your coding agent runs them on your code with one command: <span style="color:#fff;font-weight:600">audit</span>.</p>
 <div style="display:flex;gap:12px;margin-top:26px">{levels}</div>
 <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;align-items:start;margin-top:30px">{cols}</div>
 <div style="margin-top:30px;padding-top:16px;border-top:1px solid #24324f;display:flex;justify-content:space-between;align-items:flex-end;gap:24px;font-size:13px;line-height:20px;color:#9aa6bd">
-<div><div style="color:#dbe2ee"><b style="font-weight:600">Mobile apps</b>, {n_mobile} checks: React Native, Expo, Flutter, Android, iOS &nbsp;&nbsp; <b style="font-weight:600">Web apps</b>, {n_web} checks: Next.js, React</div>
+<div><div style="color:#dbe2ee"><b style="font-weight:600">Mobile</b>, {n_mobile} checks: React Native, Expo, Flutter, Android, iOS &nbsp;&nbsp; <b style="font-weight:600">Web</b>, {n_web}: Next.js, React &nbsp;&nbsp; <b style="font-weight:600">Server</b>, {n_server}: Node.js</div>
 <div>Mapped to OWASP Top 10, MASVS, Mobile Top 10, ASVS, API, LLM, Agentic Top 10</div></div>
 <div style="white-space:nowrap">Runs in Claude Code, Claude, Codex, ChatGPT, Cursor</div></div>
 </div></body></html>"""
@@ -479,7 +493,7 @@ page = f'''<!DOCTYPE html>
 <meta property="og:image" content="https://app-security.mobilefirst.in/framework.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="canonical" href="https://app-security.mobilefirst.in/framework">
-<meta name="description" content="The MobileFirst Secure Framework: {len(rules)} security checks for mobile and web apps across 11 areas, four layers and three levels, with per-stack inspection rules for React Native, Expo, Flutter, Android, iOS, Next.js and React.">
+<meta name="description" content="The MobileFirst Secure Framework: {len(rules)} security checks for mobile apps, web apps and their servers across 11 areas, four layers and three levels, with per-stack inspection rules for React Native, Expo, Flutter, Android, iOS, Next.js, React and Node.js.">
 <style>
 {fonts()}
 {CSS}
@@ -499,14 +513,14 @@ page = f'''<!DOCTYPE html>
 <main id="top" class="wrap">
 <section class="intro">
   <h1>MobileFirst Secure Framework</h1>
-  <p class="lead">A security framework for mobile and web apps built in the AI coding era. {len(rules)} checks across 11 areas, grouped in four layers and three levels. Every check specifies what to inspect, where to look on each stack and the exact conditions for a pass or a fail, so every result carries evidence a developer can verify.</p>
+  <p class="lead">A security framework for apps built in the AI coding era: mobile, web and the servers behind them. {len(rules)} checks across 11 areas, grouped in four layers and three levels. Every check specifies what to inspect, where to look on each stack and the exact conditions for a pass or a fail, so every result carries evidence a developer can verify.</p>
   <dl class="spec">
     <div><dt>Version</dt><dd>{e(D["version"])}</dd></div>
     <div><dt>Checks</dt><dd>{len(rules)} in 11 areas</dd></div>
     <div><dt>Structure</dt><dd>4 layers, 3 levels</dd></div>
-    <div><dt>Platforms</dt><dd>Mobile {n_mobile} checks, web {n_web}</dd></div>
-    <div><dt>Stacks</dt><dd>React Native, Expo, Flutter, Android, iOS, Next.js, React</dd></div>
-    <div><dt>Backends</dt><dd>Server code in the repo, plus extra checks for Firebase, Supabase</dd></div>
+    <div><dt>Platforms</dt><dd>Mobile {n_mobile} checks, web {n_web}, server {n_server}</dd></div>
+    <div><dt>Stacks</dt><dd>React Native, Expo, Flutter, Android, iOS, Next.js, React, Node.js</dd></div>
+    <div><dt>Backends</dt><dd>Node.js servers, plus extra checks for Firebase, Supabase</dd></div>
   </dl>
   <figure class="hero-img" id="overview">
     <a href="/framework.png" aria-label="Open the framework image full size"><img src="/framework.png" width="{IMG_W}" height="{IMG_H}" alt="The MobileFirst Secure Framework: {len(rules)} checks in 11 areas, grouped in four layers (Keys, Data, Access, Release) and three levels (Launch, Scale, Trust), for mobile and web apps."></a>
@@ -557,7 +571,7 @@ page = f'''<!DOCTYPE html>
     <p>Grouped by layer and area. Open a check for its full specification: what to inspect, the fail and pass conditions, the files and patterns for each stack, remediation and standards.</p></div>
     <div class="ctl">
       <div class="seg" role="group" aria-label="Show checks for">
-        <button type="button" data-show="all" aria-pressed="true">All {len(rules)}</button><button type="button" data-show="mobile" aria-pressed="false">Mobile {n_mobile}</button><button type="button" data-show="web" aria-pressed="false">Web {n_web}</button>
+        <button type="button" data-show="all" aria-pressed="true">All {len(rules)}</button><button type="button" data-show="mobile" aria-pressed="false">Mobile {n_mobile}</button><button type="button" data-show="web" aria-pressed="false">Web {n_web}</button><button type="button" data-show="server" aria-pressed="false">Server {n_server}</button>
       </div>
       <button class="btn ghost" id="toggle-all" type="button">Expand all checks</button>
     </div>

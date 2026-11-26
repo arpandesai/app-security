@@ -13,18 +13,18 @@ export interface PlannedRule {
 /**
  * Rules (with only their applicable variants) for a detected profile, in category order.
  * A rule runs when it covers one of the project's platforms (mobile, web) and has a variant for its stack.
- * Web-only projects get web wording, and mobile file types are dropped from shared variants.
+ * Web-only and server-only projects get their own wording, and projects without a mobile app drop mobile file types from shared variants.
  */
 export function planRules(profile: Profile): PlannedRule[] {
   const active = new Set(profile.targets);
   const kinds = platformKinds(profile);
-  const webOnly = kinds.web && !kinds.mobile;
+  const noMobile = !kinds.mobile;
   const planned: PlannedRule[] = [];
   for (const cat of CATEGORIES) {
     for (const rule of ALL_RULES.filter((r) => r.category === cat.id)) {
       if (!(rule.platforms || ["mobile"]).some((k) => kinds[k])) continue;
       let variants = rule.variants.filter((v) => active.has(v.target));
-      if (webOnly) {
+      if (noMobile) {
         variants = variants
           .map((v) => ({ ...v, lookIn: v.lookIn.flatMap(splitGlobs).filter((g) => !MOBILE_ONLY_GLOBS.has(g)) }))
           .filter((v) => v.lookIn.length);
@@ -68,7 +68,7 @@ export function renderChecklist(planned: PlannedRule[]): string {
 }
 
 export function agentInstructions(auditId: string, total: number, profile?: Profile): string {
-  const skip = excludeFor(profile ? platformKinds(profile) : { mobile: true, web: true });
+  const skip = excludeFor(profile ? platformKinds(profile) : { mobile: true, web: true, server: true });
   return [
     `Audit ID: ${auditId}`,
     "",

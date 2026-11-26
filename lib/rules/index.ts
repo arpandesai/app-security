@@ -5,9 +5,10 @@ import { NETWORK_RULES, PLATFORM_RULES } from "./platform";
 import { CODE_RULES, RESILIENCE_RULES, PRIVACY_RULES } from "./code";
 import { AI_RULES } from "./ai";
 import { WEB_SUPPORT, WEB_RULES } from "./web";
+import { SERVER_SUPPORT, SERVER_SIDE_RULES } from "./server";
 import { META } from "./meta";
 
-export const RULESET_VERSION = "2026.11.3";
+export const RULESET_VERSION = "2026.11.4";
 
 /** Category order = the order the agent works through them. Names never contain "and" or "&". */
 export const CATEGORIES: { id: Category; name: string }[] = [
@@ -39,6 +40,7 @@ export const ALL_RULES: Rule[] = [
   ...PRIVACY_RULES,
   ...RESILIENCE_RULES,
   ...WEB_RULES,
+  ...SERVER_SIDE_RULES,
 ];
 
 // Platforms: web-only rules say so themselves; shared rules gain web variants and wording; everything else is mobile only.
@@ -51,6 +53,13 @@ for (const r of ALL_RULES) {
     r.platforms = ["mobile", "web"];
   } else if (!r.platforms) {
     r.platforms = ["mobile"];
+  }
+  // Node.js servers: checks that apply to server code gain server variants and wording.
+  const s = SERVER_SUPPORT[r.id];
+  if (s) {
+    r.variants = [...r.variants, ...(s.variants || [])];
+    if (s.server && Object.keys(s.server).length) r.server = s.server;
+    if (!r.platforms.includes("server")) r.platforms = [...r.platforms, "server"];
   }
 }
 
@@ -70,27 +79,29 @@ export const getRule = (id: string) => BY_ID.get(id);
 
 // Guard against accidental duplicates or banned words in titles.
 for (const r of ALL_RULES) {
-  for (const t of [r.title, r.web?.title]) {
+  for (const t of [r.title, r.web?.title, r.server?.title]) {
     if (t && /\band\b|&/i.test(t)) throw new Error(`Rule title must not contain "and"/"&": ${r.id}`);
   }
 }
 for (const id of Object.keys(WEB_SUPPORT)) if (!BY_ID.has(id)) throw new Error(`rules/web.ts lists unknown rule ${id}`);
+for (const id of Object.keys(SERVER_SUPPORT)) if (!BY_ID.has(id)) throw new Error(`rules/server.ts lists unknown rule ${id}`);
 
 /** Which standards belong to which platform. Everything else (ASVS, API, LLM, Agentic) applies to both. */
 const MOBILE_STANDARD = /^Mobile Top 10/;
 const WEB_STANDARD = /^Top 10 2025/;
 
 /**
- * A rule as the audited project should see it. Web-only projects get web wording and web standards;
- * mobile-only projects get mobile standards; projects with both keep the default wording and all standards.
+ * A rule as the audited project should see it.
+ * Wording: a web app (with or without its own server) gets web wording; a server on its own gets server wording;
+ * anything with a mobile app keeps the default wording.
+ * Standards: mobile standards only when there's a mobile app, web standards only when there's web or server code.
  */
 export function viewRule(rule: Rule, kinds: Record<PlatformKind, boolean>): Rule {
-  const webOnly = kinds.web && !kinds.mobile;
-  const mobileOnly = kinds.mobile && !kinds.web;
+  const text = kinds.mobile ? undefined : kinds.web ? rule.web : kinds.server ? rule.server : undefined;
   const standards = (rule.standards || []).filter(
-    (s) => !(webOnly && MOBILE_STANDARD.test(s)) && !(mobileOnly && WEB_STANDARD.test(s))
+    (s) => !(!kinds.mobile && MOBILE_STANDARD.test(s)) && !(!kinds.web && !kinds.server && WEB_STANDARD.test(s))
   );
-  return webOnly && rule.web ? { ...rule, ...rule.web, standards } : { ...rule, standards };
+  return { ...rule, ...(text || {}), standards };
 }
 if (BY_ID.size !== ALL_RULES.length) throw new Error("Duplicate rule IDs in catalog");
 for (const id of Object.keys(META)) if (!BY_ID.has(id)) throw new Error(`rules/meta.ts lists unknown rule ${id}`);

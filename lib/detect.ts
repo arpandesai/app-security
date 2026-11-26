@@ -1,11 +1,24 @@
-import type { Profile, Target } from "./types";
+import type { AppPart, PlatformKind, Profile, Target } from "./types";
 
 const base = (p: string) => p.replace(/\\/g, "/").replace(/\/+$/, "").split("/").pop()!.toLowerCase();
+
+/** Node.js server frameworks, by package name, with their display names. */
+const NODE_SERVERS: [string, string][] = [
+  ["@nestjs/core", "NestJS"],
+  ["express", "Express"],
+  ["fastify", "Fastify"],
+  ["hono", "Hono"],
+  ["koa", "Koa"],
+  ["@hapi/hapi", "hapi"],
+  ["@adonisjs/core", "AdonisJS"],
+  ["restify", "Restify"],
+];
 
 /**
  * Work out the stack from the marker files and dependency names the agent reports.
  * Mobile: React Native/Expo, Flutter, native Android, native iOS. Web: Next.js, React (Vite or Create React App).
- * A monorepo can be both. Returns null when no supported app is found.
+ * Server: Node.js (Express, NestJS, Fastify, Hono, Koa, hapi, AdonisJS, Restify), on its own or next to the app.
+ * A monorepo can be several. Returns null when no supported app is found.
  */
 export function detectProfile(projectFiles: string[], dependencyNames: string[] = []): Profile | null {
   const files = projectFiles.map((f) => f.replace(/\\/g, "/"));
@@ -27,6 +40,11 @@ export function detectProfile(projectFiles: string[], dependencyNames: string[] 
     (deps.has("react-dom") || deps.has("react")) &&
     (deps.has("vite") || deps.has("@vitejs/plugin-react") || deps.has("@vitejs/plugin-react-swc") || deps.has("react-scripts") || anyPath(/(^|\/)vite\.config\.(js|mjs|ts)$/));
 
+  // Node.js server. Next.js route handlers are part of the web app; a separate server framework adds the server part.
+  const nodeServers = NODE_SERVERS.filter(([pkg]) => deps.has(pkg)).map(([, name]) => name);
+  if (has("nest-cli.json") && !nodeServers.includes("NestJS")) nodeServers.unshift("NestJS");
+  const isServer = nodeServers.length > 0;
+
   let android = has("androidmanifest.xml") || has("build.gradle") || has("build.gradle.kts");
   let ios =
     has("info.plist") || has("podfile") || has("package.swift") || anyPath(/\.xcodeproj\/?$/) || anyPath(/\.xcworkspace\/?$/);
@@ -43,12 +61,14 @@ export function detectProfile(projectFiles: string[], dependencyNames: string[] 
   }
   if (isNext) frameworks.push("nextjs");
   if (isReactWeb) frameworks.push("react-web");
+  if (isServer) frameworks.push("node");
   if (!frameworks.length) return null;
 
   const platforms: Profile["platforms"] = [];
   if (android) platforms.push("android");
   if (ios) platforms.push("ios");
   if (isNext || isReactWeb) platforms.push("web");
+  if (isServer) platforms.push("server");
   const mobile = android || ios;
   const web = isNext || isReactWeb;
 
@@ -68,12 +88,13 @@ export function detectProfile(projectFiles: string[], dependencyNames: string[] 
   const targets: Target[] = ["any"];
   if (mobile) targets.push("mobile");
   if (web) targets.push("web");
+  if (isServer) targets.push("server");
   if (isRN) targets.push("react-native");
   if (isExpo) targets.push("expo");
   if (isFlutter) targets.push("flutter");
   if (isNext) targets.push("nextjs");
   if (isReactWeb) targets.push("react-web");
-  targets.push(...platforms.filter((p) => p !== "web"), ...backends);
+  targets.push(...platforms.filter((p) => p === "android" || p === "ios"), ...backends);
 
   const fwName = (f: Profile["frameworks"][number]) =>
     f === "react-native"
@@ -88,9 +109,13 @@ export function detectProfile(projectFiles: string[], dependencyNames: string[] 
             ? deps.has("react-scripts")
               ? "React (Create React App)"
               : "React (Vite)"
-            : "Native";
+            : f === "node"
+              ? `Node.js (${nodeServers.slice(0, 2).join(", ")})`
+              : "Native";
   const fw = frameworks.map(fwName).join(" + ");
-  const pl = platforms.map((p) => (p === "android" ? "Android" : p === "ios" ? "iOS" : "Web")).join(", ");
+  const pl = platforms
+    .map((p) => (p === "android" ? "Android" : p === "ios" ? "iOS" : p === "web" ? "Web" : "Server"))
+    .join(", ");
   const be = backends.map((b) => (b === "firebase" ? "Firebase" : "Supabase")).join(", ");
   const label = [fw, pl, be].filter(Boolean).join(" · ");
 
@@ -98,7 +123,14 @@ export function detectProfile(projectFiles: string[], dependencyNames: string[] 
 }
 
 /** Which platform kinds a profile covers. */
-export const platformKinds = (p: Profile) => ({
+export const platformKinds = (p: Profile): Record<PlatformKind, boolean> => ({
   mobile: p.platforms.includes("android") || p.platforms.includes("ios"),
   web: p.platforms.includes("web"),
+  server: p.platforms.includes("server"),
 });
+
+/** A project with only a server is the server part of an app; everything else is the app. */
+export const appPart = (p: Profile): AppPart => {
+  const k = platformKinds(p);
+  return k.server && !k.mobile && !k.web ? "server" : "app";
+};

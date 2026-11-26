@@ -1,9 +1,9 @@
 # MobileFirst Secure
 
-A hosted MCP server that runs a security audit of a mobile or web app's **source code**, through the coding agent the founder already uses. The user types `audit`, their agent checks the code on their machine against the MobileFirst Secure rule engine, and the server turns the findings into a scored, founder-readable report with a private link.
+A hosted MCP server that runs a security audit of an app's **source code**: mobile, web and its Node.js server, through the coding agent the founder already uses. The user types `audit`, their agent checks the code on their machine against the MobileFirst Secure rule engine, and the server turns the findings into a scored, founder-readable report with a private link.
 
 - **Endpoint:** a personal URL per customer, `https://app-security.mobilefirst.in/mcp/<token>` (Streamable HTTP). Customers get it by entering name, company (optional) and email on the landing page.
-- **Stacks:** mobile: React Native (incl. Expo), Flutter, native Android, native iOS. Web: Next.js, React (Vite or Create React App). Supabase and Firebase backends are detected automatically. A monorepo with a mobile app and a web app gets both sets of checks.
+- **Stacks:** mobile: React Native (incl. Expo), Flutter, native Android, native iOS. Web: Next.js, React (Vite or Create React App). Server: Node.js (Express, NestJS, Fastify, Hono, Koa, hapi, AdonisJS, Restify), in the app's repo or its own. Supabase and Firebase backends are detected automatically. A repo with several parts gets every part's checks.
 - **Scope:** audit only. The audit never changes the user's code.
 
 ## How an audit runs
@@ -14,7 +14,7 @@ User types "audit" in Claude Code / Claude app / Codex / ChatGPT desktop / Curso
         ▼
 1. Agent lists marker files (package.json, next.config.*, vite.config.*, pubspec.yaml, AndroidManifest.xml, Info.plist…)
    and dependency names  ──►  audit
-2. Server detects the stack and returns the checklist for it (up to 46 checks for a mobile app, 37 for a web app):
+2. Server detects the stack and returns the checklist for it (up to 46 checks for a mobile app, 42 for a web app, 36 for a Node.js server):
    where to look, what to search for, what counts as fail or pass
 3. Agent checks the code locally, one category at a time  ──►  submit_findings
    (status + file:line + snippet per check; the server rejects incomplete or evidence-less fails)
@@ -105,16 +105,18 @@ Customers copy setup steps with their personal URL from their dashboard. The pat
 
 In clients that show MCP prompts as slash commands, the `audit` prompt also appears. In Claude Code it's `/mcp__mobilefirst-secure__audit`. Typing plain "audit" works everywhere, because the server's instructions tell the agent to start the audit.
 
-## Rule catalog (54 rules in 11 areas, version 2026.11.3)
+## Rule catalog (59 rules in 11 areas, version 2026.11.4)
 
 Each rule maps to OWASP MASVS v2.1 and MASWE IDs (taken from the OWASP MASWE repository) plus CWE, and to the other public standards it covers: OWASP Mobile Top 10 2024, ASVS 5.0, API Security Top 10 2023, LLM Top 10 2025 and the Agentic Top 10 2026. Web rules also map to the OWASP Top 10 2025. Rules only run when they apply to the detected stack. For example, Firebase rules are skipped for a Supabase app.
 
-**Platforms.** 29 rules cover mobile and web apps, 17 are mobile only and 8 are web only. Shared rules keep one ID and carry web variants (where to look in a Next.js or React project) plus web wording, used when the project is a web app only; a project with both keeps the default wording. Web-only audits also show web standards only, and mobile-only audits mobile standards only. Web support lives in `lib/rules/web.ts`.
+**Platforms.** Rules declare the parts of an app they cover: mobile (46 rules), web (42) and Node.js servers (36). 17 are mobile only. Server support lives in `lib/rules/server.ts`: server variants and wording for shared rules, plus 5 server-side rules (token verification, login attempts, mass assignment, private fields in responses, file uploads) that run on web apps and servers. A server audited in its own project is the app's server part: its report records `part: "server"` and the panel shows it under the same app card (names like "PayFlow API" group with "PayFlow").
+
+Shared rules keep one ID and carry per-stack variants plus web and server wording, used when the project is only that part; a project with a mobile app keeps the default wording. Audits show mobile standards only when there's a mobile app, and web standards (OWASP Top 10 2025) only when there's web or server code. Web support lives in `lib/rules/web.ts`.
 
 Every rule has a level:
 
-- **Launch** (27): every app, before it goes live.
-- **Scale** (21): once real users and money depend on it.
+- **Launch** (30): every app, before it goes live.
+- **Scale** (23): once real users and money depend on it.
 - **Trust** (6): only apps handling money, health or identity data. The agent answers `not_applicable` for other apps.
 
 | Area | Rules (severity, level) |
@@ -144,7 +146,7 @@ npm install
 npm run dev                      # http://localhost:3000, MCP at /mcp
 ```
 
-To run the end-to-end test, which plays the coding agent against two insecure sample apps in `test-fixtures/` (Expo with Supabase, and Next.js with Supabase):
+To run the end-to-end test, which plays the coding agent against two insecure sample apps in `test-fixtures/` (Expo with Supabase, Next.js with Supabase, and the Expo app's Express server in its own project):
 
 ```bash
 node scripts/mock-osv.mjs &           # local stand-in for api.osv.dev, npm, pub.dev and Resend

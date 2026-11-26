@@ -12,13 +12,17 @@ export type Target =
   | "ios"
   | "nextjs"
   | "react-web"
+  | "server"
   | "firebase"
   | "supabase";
 
-/** Mobile apps (Android, iOS) or web apps. A rule runs only on the platforms it lists. */
-export type PlatformKind = "mobile" | "web";
+/** The parts of an app: mobile (Android, iOS), web, and its Node.js server. A rule runs only on the platforms it lists. */
+export type PlatformKind = "mobile" | "web" | "server";
 
-/** Wording for web-only audits, where the mobile wording ("download your app") doesn't fit. */
+/** Which part of an app a report covers. Server reports sit under the same app in the panel. */
+export type AppPart = "app" | "server";
+
+/** Wording for web-only or server-only audits, where the mobile wording ("download your app") doesn't fit. */
 export interface WebText {
   title?: string;
   check?: string;
@@ -87,8 +91,10 @@ export interface Rule {
   highValueOnly?: boolean;
   /** Platforms the rule covers. Set in rules/index.ts; mobile only unless the rule has web support. */
   platforms?: PlatformKind[];
-  /** Web wording, used when the audited project is a web app only. */
+  /** Web wording, used when the audited project is a web app only (with or without its own server). */
   web?: WebText;
+  /** Server wording, used when the audited project is a Node.js server only. */
+  server?: WebText;
 }
 
 export type Status = "fail" | "pass" | "not_applicable" | "unable_to_check";
@@ -113,8 +119,8 @@ export interface Dependency {
 }
 
 export interface Profile {
-  frameworks: ("react-native" | "flutter" | "native" | "nextjs" | "react-web")[];
-  platforms: ("android" | "ios" | "web")[];
+  frameworks: ("react-native" | "flutter" | "native" | "nextjs" | "react-web" | "node")[];
+  platforms: ("android" | "ios" | "web" | "server")[];
   targets: Target[];
   backends: ("firebase" | "supabase")[];
   label: string;
@@ -190,4 +196,6 @@ export interface Report {
   agent?: string;
   /** The account that ran the audit. Only it, its invited reviewers and MobileFirst admins can open the report. */
   ownerId?: string;
+  /** Which part of the app: the app itself, or its server in a separate project. Missing on older reports: app. */
+  part?: AppPart;
 }
