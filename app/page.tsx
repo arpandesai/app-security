@@ -95,24 +95,6 @@ export default function Home() {
 
       <TipsTicker />
 
-      <section className="lp-how" aria-labelledby="how">
-        <h2 id="how">Three steps to your report</h2>
-        <ol className="lp-steps">
-          <li>
-            <h3>Enter your email</h3>
-            <p>We email you a code, then give you your personal audit link.</p>
-          </li>
-          <li>
-            <h3>Add the link to your coding agent</h3>
-            <p>One command or one paste. Your dashboard shows the exact setup for your tool.</p>
-          </li>
-          <li>
-            <h3>Type audit</h3>
-            <p>Your agent checks the code on your machine and hands you the report.</p>
-          </li>
-        </ol>
-      </section>
-
       <section className="lp-proof">
         <p className="lp-stat">
           71% of iOS apps ship at least one secret key inside the app.<sup>1</sup> Check yours before someone else does.

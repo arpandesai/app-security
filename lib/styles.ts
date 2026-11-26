@@ -159,15 +159,7 @@ ul.audits li:first-child{border-top:0;padding-top:0}
 @media(max-width:560px){.term-body{font-size:12.5px;padding:16px 16px 20px;min-height:0}.tl-verdict{font-size:22px}}
 
 /* how it works */
-.lp-how{border-top:1px solid var(--lp-line);padding:56px 0 8px}
 .lp h2{font-family:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;font-weight:600;font-size:28px;letter-spacing:-.02em;margin:0 0 28px}
-.lp-steps{list-style:none;margin:0;padding:0;display:grid;gap:28px;counter-reset:step}
-@media(min-width:820px){.lp-steps{grid-template-columns:repeat(3,minmax(0,1fr));gap:40px}}
-.lp-steps li{counter-increment:step;position:relative;padding-top:58px}
-.lp-steps li::before{content:counter(step);position:absolute;top:0;left:0;font-family:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;
-  font-weight:700;font-size:44px;line-height:1;color:var(--lp-blue)}
-.lp-steps h3{font-size:19px;margin:0 0 6px;letter-spacing:-.01em}
-.lp-steps p{margin:0;color:var(--lp-ink2);font-size:16px;line-height:1.55;max-width:30em}
 
 /* proof + second CTA */
 .lp-proof{padding:64px 0 48px;max-width:760px}
@@ -200,7 +192,6 @@ ul.audits li:first-child{border-top:0;padding-top:0}
 .lp-tips-pause:focus-visible{outline:3px solid #7aa2ff;outline-offset:-3px}
 @media(max-width:600px){.lp-tips-label{display:none}.lp-tips-row li{font-size:14px;padding:13px 24px}}
 @media(prefers-reduced-motion:reduce){.lp-tips-track{animation:none}.lp-tips-window{overflow-x:auto;-webkit-mask-image:none;mask-image:none}.lp-tips-row[aria-hidden]{display:none}.lp-tips-pause{display:none}}
-.lp-tips+.lp-how{border-top:0}
 /* Found issues? Our engineers fix them. */
 .lp-fix{border-top:1px solid var(--lp-line);padding:56px 0 64px;display:grid;gap:32px}
 @media(min-width:900px){.lp-fix{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:64px;align-items:center}}
