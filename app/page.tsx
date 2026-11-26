@@ -2,6 +2,7 @@ import { BRAND, SLOGAN } from "@/lib/config";
 import { AuthForm } from "./auth-form";
 import { BookLink } from "./book-link";
 import { TipsTicker } from "./tips-ticker";
+import { HeroReport } from "./hero-report";
 
 // MobileFirst's clients and technology partners (Plaid), as shown on mobilefirst.in. They work with MobileFirst's
 // engineering team; they aren't users of MobileFirst Secure, and the stripe says "working with", not "trusted by".
@@ -20,22 +21,6 @@ const CLIENTS: Client[] = [
 ];
 const MF_IMG = "https://www.mobilefirst.in/images/";
 
-// A sample audit, written the way the agent shows it in chat. Lines reveal in sequence on load (CSS only).
-type Line = { t: string; at?: string; cls?: string; gap?: boolean };
-const TRANSCRIPT: Line[] = [
-  { t: "> audit", cls: "tl-cmd" },
-  { t: "Detected React Native (Expo), Android, iOS, Supabase", cls: "tl-dim", gap: true },
-  { t: "Running 45 security checks on your code…", cls: "tl-dim" },
-  { t: "Secrets, backend, storage, network, auth, AI features…", cls: "tl-dim" },
-  { t: "MobileFirst Secure audit: PayFlow", cls: "tl-strong", gap: true },
-  { t: "Not safe to launch", cls: "tl-verdict" },
-  { t: "Score 28/100 (F)  ·  4 critical  ·  8 high  ·  11 medium", cls: "tl-dim" },
-  { t: "Fix these first:", cls: "tl-strong", gap: true },
-  { t: "1. Secret keys shipped in the app", at: ".env:3", cls: "tl-crit" },
-  { t: "2. Supabase admin key inside the app", at: "supabase.ts:5", cls: "tl-crit" },
-  { t: "3. Database open to anyone", at: "0001_init.sql:2", cls: "tl-crit" },
-  { t: "Full report: app-security.mobilefirst.in/r/…", cls: "tl-link", gap: true },
-];
 
 export default function Home() {
   return (
@@ -63,22 +48,7 @@ export default function Home() {
           <p className="lp-tools">Works in Claude Code, Codex, ChatGPT, Cursor, VS Code and the Claude app.</p>
         </div>
 
-        <figure className="lp-demo" aria-label="Sample audit of an example payments app">
-          <div className="term">
-            <div className="term-bar">
-              <span className="term-title">Your coding agent</span>
-              <span className="term-tag">Sample audit</span>
-            </div>
-            <div className="term-body">
-              {TRANSCRIPT.map((l, i) => (
-                <p key={i} className={`tl ${l.cls || ""} ${l.gap ? "tl-gap" : ""}`} style={{ animationDelay: `${0.35 + i * 0.32}s` }}>
-                  {l.t}
-                  {l.at ? <span className="tl-at">{l.at}</span> : null}
-                </p>
-              ))}
-            </div>
-          </div>
-        </figure>
+        <HeroReport />
       </section>
 
       <section className="lp-clients" aria-label="MobileFirst clients and partners">
