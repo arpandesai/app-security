@@ -4,7 +4,7 @@ import { BRAND, bookHref } from "@/lib/config";
 import { sendEmail } from "@/lib/email";
 import { notifyTeam } from "@/lib/notify";
 import { clientLabel, getActivity } from "@/lib/activity";
-import { CALL_WITHIN, SUPPORT_CALL_EMAIL, cleanPhone, supportStatus } from "@/lib/support";
+import { SUPPORT_CALL_EMAIL, cleanPhone } from "@/lib/support";
 import { AGENT_TOOLS } from "@/app/agent-tools";
 
 // "Need help setting up?": a signed-in customer asks an engineer to call them. Emails the team with
@@ -33,9 +33,8 @@ export async function POST(req: Request) {
   const tz = typeof body.tz === "string" ? body.tz.slice(0, 60) : "";
   const page = typeof body.page === "string" && body.page.startsWith("/") ? body.page.slice(0, 80) : "";
 
-  const status = supportStatus();
   // One request per two minutes, three per hour.
-  if (!(await kv.setNX(`cb:${account.id}:cool`, "1", 120))) return Response.json({ ok: true, already: true, ...status });
+  if (!(await kv.setNX(`cb:${account.id}:cool`, "1", 120))) return Response.json({ ok: true, already: true });
   let slot = false;
   for (const i of [1, 2, 3]) if ((slot = await kv.setNX(`cb:${account.id}:${i}`, "1", 3600))) break;
   if (!slot) {
@@ -62,12 +61,11 @@ export async function POST(req: Request) {
     audit,
     page,
     tz,
-    live: status.live,
     at: new Date().toISOString(),
   };
   await kv.rpush("callback_requests", JSON.stringify({ accountId: account.id, ...request }));
 
-  const subject = `${status.live ? "Call now" : "Call back"}: ${name} needs setup help`;
+  const subject = `Call now: ${name} needs setup help`;
   const digits = phone.replace(/^\+/, "");
   const rows: [string, string][] = [
     ["Name", esc(name)],
@@ -81,7 +79,7 @@ export async function POST(req: Request) {
     ["Asked from", esc(page || "Panel")],
   ];
   const html =
-    `<p style="font:600 16px sans-serif">${status.live ? `Call within ${CALL_WITHIN}: we promised it on the page.` : "Outside support hours: call at the next opening."}</p>` +
+    `<p style="font:600 16px sans-serif">Call them now: the page says Live now.</p>` +
     `<table cellpadding="6" style="font:14px sans-serif;border-collapse:collapse">${rows
       .map(([k, v]) => `<tr><td style="color:#667085">${k}</td><td>${v}</td></tr>`)
       .join("")}</table>`;
@@ -103,5 +101,5 @@ export async function POST(req: Request) {
   if (!sent && !process.env.LEAD_WEBHOOK_URL) {
     return Response.json({ error: "We couldn't send your request. Book a time instead.", book: bookHref("setup") }, { status: 502 });
   }
-  return Response.json({ ok: true, ...status });
+  return Response.json({ ok: true });
 }

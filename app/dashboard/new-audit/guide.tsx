@@ -74,9 +74,6 @@ function Waiting({ children }: { children: React.ReactNode }) {
 
 export interface CallProps {
   defaultName: string;
-  live: boolean;
-  nextOpening: string | null;
-  within: string;
 }
 
 export function AuditGuide({

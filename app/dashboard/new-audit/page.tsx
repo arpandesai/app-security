@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { BRAND, bookHref, personalMcpUrl } from "@/lib/config";
 import { clientLabel, getActivity } from "@/lib/activity";
-import { CALL_WITHIN, supportStatus } from "@/lib/support";
 import { Panel, requireAccount } from "../panel";
 import { AuditGuide } from "./guide";
 
@@ -24,7 +23,7 @@ export default async function NewAudit() {
         url={personalMcpUrl(account.token)}
         serverNow={Date.now()}
         helpHref={bookHref("new-audit")}
-        call={{ defaultName: account.name || "", within: CALL_WITHIN, ...supportStatus() }}
+        call={{ defaultName: account.name || "" }}
         initial={{
           connection: a.connection ? { client: a.connection.client, label: clientLabel(a.connection.client), at: a.connection.at } : null,
           audit: a.audit,

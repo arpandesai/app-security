@@ -2,40 +2,14 @@
 
 import { useState } from "react";
 
-// "Need help setting up?": ask an engineer to call. Live now during support hours (a call within minutes);
-// outside them, says when the call will come, in the visitor's own time.
-/** "today from 10:00 AM, your time", "tomorrow from …" or "on Friday from …", in the visitor's time zone. */
-function opening(at: Date): string {
-  const time = at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const days = Math.round((day(at) - day(new Date())) / 86400000);
-  const date = days === 0 ? "today" : days === 1 ? "tomorrow" : `on ${at.toLocaleDateString(undefined, { weekday: "long" })}`;
-  return `${date} from ${time}, your time`;
-}
-
-export function CallMe({
-  defaultName,
-  live,
-  nextOpening,
-  within,
-  tool,
-  page,
-}: {
-  defaultName: string;
-  live: boolean;
-  nextOpening: string | null;
-  within: string;
-  tool?: string;
-  page: string;
-}) {
+// "Need help setting up?": ask an engineer to call.
+export function CallMe({ defaultName, tool, page }: { defaultName: string; tool?: string; page: string }) {
   const [name, setName] = useState(defaultName);
   const [phone, setPhone] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
   const [error, setError] = useState("");
   const [book, setBook] = useState("");
 
-  const when = nextOpening ? opening(new Date(nextOpening)) : "as soon as we're back";
-  const promise = live ? `in under ${within}` : when;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -68,25 +42,18 @@ export function CallMe({
         <h2 id="cm-h" className="pn-h2">
           Need help setting up?
         </h2>
-        {live ? (
-          <span className="cm-live">
-            <span className="cm-dot" aria-hidden="true" />
-            Live now
-          </span>
-        ) : null}
+        <span className="cm-live">
+          <span className="cm-dot" aria-hidden="true" />
+          Live now
+        </span>
       </div>
       {state === "done" ? (
         <p className="cm-done" role="status">
-          Thanks{first ? `, ${first}` : ""}. An engineer will call {phone} {promise}
-          {live ? ". Keep your project open, we'll set it up together." : "."}
+          Thanks{first ? `, ${first}` : ""}. Our engineer will call you soon on {phone}.
         </p>
       ) : (
         <>
-          <p className="cm-lead">
-            {live
-              ? `Request a call and one of our engineers will call you in under ${within} to set it up with you.`
-              : `Leave your number and one of our engineers will call you ${when}, to set it up with you.`}
-          </p>
+          <p className="cm-lead">Request a call and our engineer will call you soon.</p>
           <form className="cm-form" onSubmit={submit}>
             <label>
               <span>Your name</span>

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { BRAND, personalMcpUrl } from "@/lib/config";
-import { CALL_WITHIN, supportStatus } from "@/lib/support";
 import { InstallTabs } from "../../install-tabs";
 import { BookLink, Panel, requireAccount } from "../panel";
 import { CallMe } from "../call-me";
@@ -23,7 +22,7 @@ export default async function Setup() {
         </>
       }
     >
-      <CallMe defaultName={account.name || ""} within={CALL_WITHIN} {...supportStatus()} page="/dashboard/setup" />
+      <CallMe defaultName={account.name || ""} page="/dashboard/setup" />
 
       <section className="card">
         <InstallTabs url={personalMcpUrl(account.token)} />
