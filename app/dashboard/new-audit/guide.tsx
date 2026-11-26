@@ -36,6 +36,11 @@ function ago(iso: string) {
   return new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 }
 
+/** Show words in `backticks` as code. */
+function withCode(text: string) {
+  return text.split("`").map((part, i) => (i % 2 ? <code key={i}>{part}</code> : part));
+}
+
 function Copy({ text }: { text: string }) {
   const [done, setDone] = useState(false);
   return (
@@ -211,7 +216,7 @@ export function AuditGuide({ url, serverNow, initial, helpHref }: { url: string;
                     {s.title}
                     {done ? <span className="sr-only"> (done)</span> : null}
                   </h3>
-                  <p>{s.body}</p>
+                  <p>{withCode(s.body)}</p>
                   {s.code ? <Copy text={s.code(url)} /> : null}
                   {status(s)}
                 </div>
