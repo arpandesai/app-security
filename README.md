@@ -48,8 +48,7 @@ The codebase never leaves the user's machine. Only rule results, file paths, sho
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Yes (prod) | Upstash Redis, added by the Marketplace integration. Prefixed names (`<PREFIX>_KV_REST_API_URL`) and `UPSTASH_REDIS_REST_URL`/`_TOKEN` also work. Without Redis on Vercel, audits are refused with a clear message: parallel requests hit different server instances, so in-memory storage loses audits. |
 | `PUBLIC_BASE_URL` | No | Defaults to `https://app-security.mobilefirst.in`. Used to build report links. |
 | `LEAD_WEBHOOK_URL` | Recommended | Every booking click is POSTed here as JSON with a `text` field, so a Slack incoming webhook works as is. Zapier and Make work too. |
-| `SUPPORT_HOURS` | No | When engineers can call back within minutes, e.g. `Mon-Sat 10:00-19:00 Asia/Kolkata` (the default). During these hours "Need help setting up?" shows **Live now** and promises a call in under 2 minutes; outside them it says when the call will come, in the customer's own time. |
-| `SUPPORT_CALL_EMAIL` | No | Where call requests are emailed. Defaults to `nishant@mobilefirst.in`. They also go to `LEAD_WEBHOOK_URL` when set, which is faster for a 2-minute promise. |
+| `SUPPORT_CALL_EMAIL` | No | Where call requests are emailed. Defaults to `nishant@mobilefirst.in`. They also go to `LEAD_WEBHOOK_URL` when set. |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Yes (prod) | Sends sign-in codes and reviewer invites through Resend. `EMAIL_FROM` must use your verified Resend domain, e.g. `MobileFirst Secure <secure@mobilefirst.in>`. Without these, nobody can sign up or sign in. |
 | `LEAD_NOTIFY_EMAIL` | No | Also email every booking click to this address (needs Resend). |
 | `BOOKING_URL` | No | Where every "Get it fixed" and "Need help" button leads. Defaults to the MobileFirst Google Calendar booking page. |

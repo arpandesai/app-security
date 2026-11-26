@@ -287,17 +287,17 @@ assert.equal((await callback({ name: "Priya", phone: "call me" })).status, 400, 
 assert.equal((await callback({ name: "", phone: "+14155550100" })).status, 400, "a name is required");
 const cb = await callback({ name: "Priya Shah", phone: "+1 (415) 555-0100", tool: "vscode", tz: "America/New_York", page: "/dashboard/new-audit" });
 assert.equal(cb.status, 200);
-const cbBody = await cb.json();
-assert.equal(typeof cbBody.live, "boolean");
+assert.equal((await cb.json()).ok, true);
 const callMail = await (await fetch(`${MAIL}/_mail?to=nishant@mobilefirst.in`)).json();
-assert.match(callMail.subject, /(Call now|Call back): Priya Shah needs setup help/);
+assert.match(callMail.subject, /Call now: Priya Shah needs setup help/);
 for (const bit of ["+14155550100", "wa.me/14155550100", "VS Code", "PayFlow", "e2e-agent", "America/New_York"]) assert.ok(callMail.html.includes(bit), `call email includes ${bit}`);
 assert.equal((await (await callback({ name: "Priya Shah", phone: "+14155550100" })).json()).already, true, "a second request within two minutes isn't sent again");
 for (const path of ["/dashboard/new-audit", "/dashboard/setup"]) {
   const html = await page(path);
   assert.ok(html.includes("Need help setting up?") && html.includes("Request a call"), `${path} offers a call`);
+  assert.ok(html.includes("Live now") && html.includes("Request a call and our engineer will call you soon."), `${path}: Live now, call soon`);
 }
-ok(`call requests: validated, emailed to nishant@mobilefirst.in with tool, connection and audit, ${cbBody.live ? "live now" : "outside hours"}`);
+ok("call requests: validated, emailed to nishant@mobilefirst.in with tool, connection and audit");
 
 // Idempotent: a repeat submit returns the same report
 const again = textOf(await client.callTool({ name: "submit_findings", arguments: { audit_id: auditId, results: [] } }));
