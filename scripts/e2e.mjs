@@ -141,7 +141,7 @@ assert.match(dash0, /Get your first report/);
 assert.match(dash0, /go\/book\?from=onboarding/);
 const setup0 = await page("/dashboard/setup");
 const token = setup0.match(/\/mcp\/(mfs_[A-Za-z0-9_-]{32})/)[1];
-assert.match(setup0, /Need help installing\?/);
+assert.match(setup0, /Need help setting up\?/);
 assert.match(setup0, /go\/book\?from=setup/);
 for (const path of ["/dashboard/audits", "/dashboard/setup", "/dashboard/account", "/dashboard/reports/AAAAAAAAAAAAAAAAAAAAAA"]) {
   assert.equal((await dashFetch(null, path)).status, 307, `${path} needs a session`);
@@ -278,6 +278,26 @@ assert.ok(guide.includes("/go/book?from=new-audit"), "stuck on a step books a ca
 assert.ok((await page("/dashboard/audits")).includes('href="/dashboard/new-audit"'), "Audits page has Run a new audit");
 assert.ok((await page("/dashboard")).includes('href="/dashboard/new-audit"'), "Overview has Run a new audit");
 ok("guide: audit progress and report ready; Run a new audit on Overview and Audits");
+
+// Need help setting up? Request a call: signed-in only, validated, emailed to the team with context.
+const callback = (body, c = cookie) =>
+  fetch(`${BASE}/api/callback`, { method: "POST", headers: { "content-type": "application/json", ...(c ? { cookie: c } : {}) }, body: JSON.stringify(body) });
+assert.equal((await callback({ name: "Priya", phone: "+14155550100" }, "")).status, 401, "call requests need a session");
+assert.equal((await callback({ name: "Priya", phone: "call me" })).status, 400, "phone numbers are validated");
+assert.equal((await callback({ name: "", phone: "+14155550100" })).status, 400, "a name is required");
+const cb = await callback({ name: "Priya Shah", phone: "+1 (415) 555-0100", tool: "vscode", tz: "America/New_York", page: "/dashboard/new-audit" });
+assert.equal(cb.status, 200);
+const cbBody = await cb.json();
+assert.equal(typeof cbBody.live, "boolean");
+const callMail = await (await fetch(`${MAIL}/_mail?to=nishant@mobilefirst.in`)).json();
+assert.match(callMail.subject, /(Call now|Call back): Priya Shah needs setup help/);
+for (const bit of ["+14155550100", "wa.me/14155550100", "VS Code", "PayFlow", "e2e-agent", "America/New_York"]) assert.ok(callMail.html.includes(bit), `call email includes ${bit}`);
+assert.equal((await (await callback({ name: "Priya Shah", phone: "+14155550100" })).json()).already, true, "a second request within two minutes isn't sent again");
+for (const path of ["/dashboard/new-audit", "/dashboard/setup"]) {
+  const html = await page(path);
+  assert.ok(html.includes("Need help setting up?") && html.includes("Request a call"), `${path} offers a call`);
+}
+ok(`call requests: validated, emailed to nishant@mobilefirst.in with tool, connection and audit, ${cbBody.live ? "live now" : "outside hours"}`);
 
 // Idempotent: a repeat submit returns the same report
 const again = textOf(await client.callTool({ name: "submit_findings", arguments: { audit_id: auditId, results: [] } }));

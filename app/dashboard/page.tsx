@@ -43,11 +43,11 @@ function FirstReport() {
         </li>
       </ol>
       <p className="pn-stuck">
-        Stuck on setup?{" "}
+        Stuck on setup? <a href="/dashboard/new-audit#call">Request a call</a> and an engineer will set it up with you, or{" "}
         <BookLink from="onboarding" className="">
-          Book a call
-        </BookLink>{" "}
-        and we'll connect it with you.
+          book a time
+        </BookLink>
+        .
       </p>
     </section>
   );
