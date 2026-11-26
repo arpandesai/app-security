@@ -3,14 +3,13 @@ import { AuthForm } from "./auth-form";
 import { BookLink } from "./book-link";
 import { TipsTicker } from "./tips-ticker";
 
-// MobileFirst's clients, as shown on mobilefirst.in. They're clients of MobileFirst's engineering work,
-// not users of MobileFirst Secure, and the stripe says so.
+// MobileFirst's clients and technology partners (Plaid), as shown on mobilefirst.in. They work with MobileFirst's
+// engineering team; they aren't users of MobileFirst Secure, and the stripe says "working with", not "trusted by".
 // Each logo has its own height so they read at the same visual size: square marks taller, wide wordmarks
-// shorter, and files with built-in padding (Flipkart, Appsmith) larger. Tone evens out pale and heavy marks.
+// shorter, and files with built-in padding (Appsmith) larger. Tone evens out pale and heavy marks.
 type Client = { name: string; file: string; h: number; tone?: "lift" | "soft" };
 const CLIENTS: Client[] = [
-  { name: "Volkswagen", file: "vw-logo.png", h: 44 },
-  { name: "Flipkart", file: "flipkart-logo.png", h: 84, tone: "lift" },
+  { name: "Plaid", file: "plaid-logo.png", h: 26 },
   { name: "Appsmith", file: "appsmith-logo.png", h: 36 },
   { name: "GamePlan by Stack Sports", file: "gameplan-logo.png", h: 20, tone: "soft" },
   { name: "Shadowfax", file: "shadowfax-logo.png", h: 30, tone: "lift" },
@@ -82,9 +81,9 @@ export default function Home() {
         </figure>
       </section>
 
-      <section className="lp-clients" aria-label="MobileFirst clients">
+      <section className="lp-clients" aria-label="MobileFirst clients and partners">
         <p>
-          Built by <a href="https://mobilefirst.in">MobileFirst</a>, engineering partner to
+          Built by <a href="https://mobilefirst.in">MobileFirst</a>, working with
         </p>
         <ul>
           {CLIENTS.map((c) => (
