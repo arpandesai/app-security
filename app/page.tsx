@@ -5,16 +5,19 @@ import { TipsTicker } from "./tips-ticker";
 
 // MobileFirst's clients, as shown on mobilefirst.in. They're clients of MobileFirst's engineering work,
 // not users of MobileFirst Secure, and the stripe says so.
-const CLIENTS: [string, string][] = [
-  ["Volkswagen", "vw-logo.png"],
-  ["Flipkart", "flipkart-logo.png"],
-  ["Appsmith", "appsmith-logo.png"],
-  ["GamePlan by Stack Sports", "gameplan-logo.png"],
-  ["Shadowfax", "shadowfax-logo.png"],
-  ["Leap", "leap-logo.png"],
-  ["BioMark", "biomark-logo.png"],
-  ["Protean", "protean-logo.png"],
-  ["NPS", "nps-logo.png"],
+// Each logo has its own height so they read at the same visual size: square marks taller, wide wordmarks
+// shorter, and files with built-in padding (Flipkart, Appsmith) larger. Tone evens out pale and heavy marks.
+type Client = { name: string; file: string; h: number; tone?: "lift" | "soft" };
+const CLIENTS: Client[] = [
+  { name: "Volkswagen", file: "vw-logo.png", h: 44 },
+  { name: "Flipkart", file: "flipkart-logo.png", h: 84, tone: "lift" },
+  { name: "Appsmith", file: "appsmith-logo.png", h: 36 },
+  { name: "GamePlan by Stack Sports", file: "gameplan-logo.png", h: 20, tone: "soft" },
+  { name: "Shadowfax", file: "shadowfax-logo.png", h: 30, tone: "lift" },
+  { name: "Leap", file: "leap-logo.png", h: 24 },
+  { name: "BioMark", file: "biomark-logo.png", h: 23 },
+  { name: "Protean", file: "protean-logo.png", h: 24, tone: "soft" },
+  { name: "NPS", file: "nps-logo.png", h: 42 },
 ];
 const MF_IMG = "https://www.mobilefirst.in/images/";
 
@@ -84,10 +87,17 @@ export default function Home() {
           Built by <a href="https://mobilefirst.in">MobileFirst</a>, engineering partner to
         </p>
         <ul>
-          {CLIENTS.map(([name, file]) => (
-            <li key={name}>
+          {CLIENTS.map((c) => (
+            <li key={c.name}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={MF_IMG + file} alt={name} height={28} loading="lazy" decoding="async" />
+              <img
+                src={MF_IMG + c.file}
+                alt={c.name}
+                className={c.tone ? `t-${c.tone}` : undefined}
+                style={{ "--h": `${c.h}px` } as React.CSSProperties}
+                loading="lazy"
+                decoding="async"
+              />
             </li>
           ))}
         </ul>
@@ -97,7 +107,7 @@ export default function Home() {
 
       <section className="lp-proof">
         <p className="lp-stat">
-          71% of iOS apps ship at least one secret key inside the app.<sup>1</sup> Check yours before someone else does.
+          In a study of 156,000 apps, 71% shipped at least one secret key inside the app. Check yours before someone else does.
         </p>
         <p className="lp-trust">
           The checks cover every OWASP Mobile Top 10 risk and all 24 OWASP MASVS controls. The audit is read-only and never changes your
@@ -137,13 +147,6 @@ export default function Home() {
       <footer className="lp-foot">
         <p>
           {BRAND}, a MobileFirst product. {SLOGAN}.
-        </p>
-        <p className="lp-src">
-          1. Cybernews analysis of 156,080 iOS apps, reported by{" "}
-          <a href="https://www.malwarebytes.com/blog/news/2025/03/research-on-ios-apps-shows-widespread-exposure-of-secrets" rel="noopener">
-            Malwarebytes
-          </a>
-          , March 2025.
         </p>
       </footer>
     </main>
