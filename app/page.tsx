@@ -1,5 +1,22 @@
 import { BRAND, SLOGAN } from "@/lib/config";
 import { AuthForm } from "./auth-form";
+import { BookLink } from "./book-link";
+import { TipsTicker } from "./tips-ticker";
+
+// MobileFirst's clients, as shown on mobilefirst.in. They're clients of MobileFirst's engineering work,
+// not users of MobileFirst Secure, and the stripe says so.
+const CLIENTS: [string, string][] = [
+  ["Volkswagen", "vw-logo.png"],
+  ["Flipkart", "flipkart-logo.png"],
+  ["Appsmith", "appsmith-logo.png"],
+  ["GamePlan by Stack Sports", "gameplan-logo.png"],
+  ["Shadowfax", "shadowfax-logo.png"],
+  ["Leap", "leap-logo.png"],
+  ["BioMark", "biomark-logo.png"],
+  ["Protean", "protean-logo.png"],
+  ["NPS", "nps-logo.png"],
+];
+const MF_IMG = "https://www.mobilefirst.in/images/";
 
 // A sample audit, written the way the agent shows it in chat. Lines reveal in sequence on load (CSS only).
 type Line = { t: string; at?: string; cls?: string; gap?: boolean };
@@ -62,6 +79,22 @@ export default function Home() {
         </figure>
       </section>
 
+      <section className="lp-clients" aria-label="MobileFirst clients">
+        <p>
+          Built by <a href="https://mobilefirst.in">MobileFirst</a>, engineering partner to
+        </p>
+        <ul>
+          {CLIENTS.map(([name, file]) => (
+            <li key={name}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={MF_IMG + file} alt={name} height={28} loading="lazy" decoding="async" />
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <TipsTicker />
+
       <section className="lp-how" aria-labelledby="how">
         <h2 id="how">Three steps to your report</h2>
         <ol className="lp-steps">
@@ -86,11 +119,37 @@ export default function Home() {
         </p>
         <p className="lp-trust">
           The checks cover every OWASP Mobile Top 10 risk and all 24 OWASP MASVS controls. The audit is read-only and never changes your
-          code. Built by MobileFirst, building mobile apps since 2014.
+          code.
         </p>
         <a className="btn lp-again" href="#start">
           Get my free report
         </a>
+      </section>
+
+      <section className="lp-fix" aria-labelledby="fix">
+        <div>
+          <h2 id="fix">Found issues? Our engineers fix them.</h2>
+          <p>
+            Book a call and MobileFirst engineers will fix the findings in your code. We've built apps since 2014, reaching 100M+ end users
+            across 20+ countries.
+          </p>
+          <BookLink from="home" className="btn lp-again">
+            Book a call
+          </BookLink>
+        </div>
+        <figure className="lp-quote">
+          <blockquote>
+            <p>&ldquo;MobileFirst worked quickly and provided a solution that met the functional requirements.&rdquo;</p>
+          </blockquote>
+          <figcaption>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={MF_IMG + "20685774-ded5-4c1e-9dfe-fdebc01ce9ba.jpg"} alt="" width={48} height={48} loading="lazy" />
+            <span>
+              <b>Tony Chang</b>
+              Technical Manager, Morro Data, San Francisco
+            </span>
+          </figcaption>
+        </figure>
       </section>
 
       <footer className="lp-foot">
