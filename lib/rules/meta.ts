@@ -47,7 +47,7 @@ export const META: Record<string, { level: Level; standards: string[] }> = {
   "MFS-PRIVACY-02": { level: "scale", standards: ["Mobile Top 10 2024: M6 Inadequate Privacy Controls"] },
   "MFS-PRIVACY-03": { level: "scale", standards: ["Mobile Top 10 2024: M6 Inadequate Privacy Controls"] },
   "MFS-PRIVACY-05": { level: "scale", standards: ["Mobile Top 10 2024: M6 Inadequate Privacy Controls"] },
-  "MFS-RESILIENCE-01": { level: "launch", standards: ["Mobile Top 10 2024: M8 Security Misconfiguration", "Top 10 2025: A02 Security Misconfiguration"] },
+  "MFS-RESILIENCE-01": { level: "launch", standards: ["Mobile Top 10 2024: M8 Security Misconfiguration", "Top 10 2025: A02 Security Misconfiguration", "Top 10 2025: A10 Mishandling of Exceptional Conditions"] },
   "MFS-RESILIENCE-02": { level: "trust", standards: ["Mobile Top 10 2024: M7 Insufficient Binary Protections", "Top 10 2025: A02 Security Misconfiguration"] },
   "MFS-RESILIENCE-03": { level: "trust", standards: ["Mobile Top 10 2024: M7 Insufficient Binary Protections"] },
   // Web only
@@ -59,4 +59,10 @@ export const META: Record<string, { level: Level; standards: string[] }> = {
   "MFS-PLATFORM-06": { level: "scale", standards: ["Top 10 2025: A02 Security Misconfiguration", "ASVS 5.0: HTTP security headers"] },
   "MFS-PLATFORM-07": { level: "scale", standards: ["Top 10 2025: A01 Broken Access Control"] },
   "MFS-CODE-08": { level: "launch", standards: ["Top 10 2025: A05 Injection", "ASVS 5.0: injection prevention"] },
+  // Server-side (web and Node.js servers)
+  "MFS-AUTH-07": { level: "launch", standards: ["Top 10 2025: A07 Authentication Failures", "API Top 10 2023: API2 Broken Authentication"] },
+  "MFS-AUTH-08": { level: "launch", standards: ["Top 10 2025: A07 Authentication Failures", "API Top 10 2023: API2 Broken Authentication"] },
+  "MFS-BACKEND-11": { level: "launch", standards: ["Top 10 2025: A01 Broken Access Control", "API Top 10 2023: API3 Broken Object Property Level Authorization"] },
+  "MFS-BACKEND-12": { level: "scale", standards: ["Top 10 2025: A01 Broken Access Control", "API Top 10 2023: API3 Broken Object Property Level Authorization"] },
+  "MFS-CODE-09": { level: "scale", standards: ["Top 10 2025: A06 Insecure Design", "ASVS 5.0: file handling"] },
 };

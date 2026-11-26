@@ -16,6 +16,10 @@ const STACKS: [string, string[], string[]][] = [
   ["Next.js with Supabase", ["package.json", "next.config.ts", "supabase/migrations"], ["next", "react-dom", "@supabase/supabase-js"]],
   ["React (Vite) with Firebase", ["package.json", "vite.config.ts", "firebase.json"], ["react", "react-dom", "vite", "firebase"]],
   ["Every web target", ["package.json", "next.config.ts", "firebase.json", "supabase/migrations"], ["next", "react-dom", "firebase", "@supabase/supabase-js"]],
+  ["Express server", ["package.json"], ["express"]],
+  ["NestJS server with Supabase", ["package.json", "nest-cli.json", "supabase/migrations"], ["@nestjs/core", "@supabase/supabase-js"]],
+  ["Every server target", ["package.json", "firebase.json", "supabase/migrations"], ["express", "firebase-admin", "@supabase/supabase-js"]],
+  ["Expo app with an Express server", ["package.json", "app.json", "server/package.json", "supabase/config.toml"], ["expo", "react-native", "express", "@supabase/supabase-js"]],
   ["Expo and Next.js monorepo", ["apps/mobile/package.json", "apps/mobile/app.json", "apps/web/next.config.ts", "supabase/config.toml"], ["expo", "react-native", "next", "react-dom", "@supabase/supabase-js"]],
 ];
 const stackCounts = STACKS.map(([name, files, deps]) => {
@@ -25,11 +29,15 @@ const stackCounts = STACKS.map(([name, files, deps]) => {
 
 const out = {
   version: RULESET_VERSION, thresholds: THRESHOLDS, globs: G, stackCounts,
-  exclude: { mobile: excludeFor({ mobile: true, web: false }), web: excludeFor({ mobile: false, web: true }) },
+  exclude: {
+    mobile: excludeFor({ mobile: true, web: false }),
+    web: excludeFor({ mobile: false, web: true }),
+    server: excludeFor({ mobile: false, web: false, server: true }),
+  },
   categories: CATEGORIES.map(c => ({ id: c.id, name: c.name, rules: ALL_RULES.filter(r => r.category === c.id).map(r => ({
     id: r.id, severity: r.severity, title: r.title, check: r.check, failIf: r.failIf, passIf: r.passIf, variants: r.variants,
     founder: r.founder, fix: r.fix, refs: r.refs, level: r.level, standards: r.standards || [],
-    platforms: r.platforms, web: r.web || null,
+    platforms: r.platforms, web: r.web || null, server: r.server || null,
     highValueOnly: !!r.highValueOnly, serverEvaluated: !!r.serverEvaluated, registryCheck: !!r.registryCheck })) })),
 };
 console.log(JSON.stringify(out, null, 1));

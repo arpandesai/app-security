@@ -5,7 +5,7 @@ import { AGENT_TOOLS, type GuideStep } from "../../agent-tools";
 
 export interface GuideActivity {
   connection: { client: string; label: string; at: string } | null;
-  audit: { auditId: string; appName: string; total: number; answered: number; startedAt: string; reportId?: string } | null;
+  audit: { auditId: string; appName: string; total: number; answered: number; startedAt: string; reportId?: string; serverHint?: boolean } | null;
 }
 
 const POLL_MS = 3000;
@@ -140,6 +140,12 @@ export function AuditGuide({ url, serverNow, initial, helpHref }: { url: string;
             <a className="btn" href={`/dashboard/reports/${audit.reportId}`}>
               Open report
             </a>
+            {audit.serverHint ? (
+              <p className="ng-next">
+                Is part of your app in another project, like its server? Open that project and type <code>audit</code> there too. It
+                shows up here under the same app.
+              </p>
+            ) : null}
           </div>
         );
       if (audit) {

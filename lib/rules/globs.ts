@@ -31,6 +31,12 @@ export const G = {
   webRoutes:
     "app/**/route.{js,ts},src/app/**/route.{js,ts},pages/api/**,src/pages/api/**,app/**/actions.{js,ts},src/app/**/actions.{js,ts},server/**,api/**",
   html: "index.html,public/**/*.html",
+  // Node.js servers
+  serverCode:
+    "src/**/*.{js,ts,mjs,cjs},routes/**,controllers/**,middleware/**,middlewares/**,services/**,modules/**,handlers/**,server/**,api/**,app/**/*.{js,ts},lib/**/*.{js,ts},*.{js,ts,mjs,cjs}",
+  serverConfig:
+    "package.json,**/.env*,ecosystem.config.*,Dockerfile,docker-compose*.{yml,yaml},serverless.{yml,yaml,ts},nest-cli.json,vercel.json,fly.toml,render.yaml,Procfile",
+  templates: "**/*.{ejs,hbs,handlebars,pug,njk,html}",
 };
 
 /** Split comma-separated glob lists without breaking brace sets such as *.{js,ts}. */
@@ -49,13 +55,15 @@ export const MOBILE_ONLY_GLOBS = new Set(
 const EXCLUDE_COMMON = ["node_modules", "build", "dist", "vendor", ".git", "coverage"];
 const EXCLUDE_MOBILE = ["Pods", ".dart_tool", ".gradle", ".expo", "DerivedData", "android/app/build", "ios/build"];
 const EXCLUDE_WEB = [".next", ".vercel", "out"];
-export const excludeFor = (kinds: { mobile: boolean; web: boolean }) => [
+const EXCLUDE_SERVER = [".serverless", ".aws-sam", "uploads", "logs"];
+export const excludeFor = (kinds: { mobile: boolean; web: boolean; server?: boolean }) => [
   ...EXCLUDE_COMMON,
   ...(kinds.mobile ? EXCLUDE_MOBILE : []),
   ...(kinds.web ? EXCLUDE_WEB : []),
+  ...(kinds.server ? EXCLUDE_SERVER : []),
   "*.lock (except when collecting dependencies)",
 ];
-export const EXCLUDE = excludeFor({ mobile: true, web: true });
+export const EXCLUDE = excludeFor({ mobile: true, web: true, server: true });
 
 /** Platform thresholds. Update yearly when store requirements move. */
 export const THRESHOLDS = {

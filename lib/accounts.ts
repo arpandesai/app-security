@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { Report, Verdict } from "./types";
+import type { AppPart, Report, Verdict } from "./types";
 import { kv } from "./store";
 
 /**
@@ -27,6 +27,8 @@ export interface AccountReport {
   grade: string;
   counts: Report["counts"];
   agent?: string;
+  /** App or server. Missing on older entries: app. */
+  part?: AppPart;
 }
 
 /** Who is calling the MCP server, from the URL they connected with. */
@@ -115,6 +117,7 @@ export async function addAccountReport(accountId: string, r: Report) {
     grade: r.grade,
     counts: r.counts,
     agent: r.agent,
+    part: r.part,
   };
   await kv.hset(reportsKey(accountId), r.id, JSON.stringify(entry), FOREVER);
 }
@@ -140,21 +143,42 @@ export async function updateProfile(id: string, input: { name: string; company?:
   return account;
 }
 
-export interface AppSummary {
-  appName: string;
+export interface PartSummary {
+  part: AppPart;
   latest: AccountReport;
   audits: number;
 }
 
-/** One entry per app (by name), newest audit first. Reports must already be sorted newest first. */
+export interface AppSummary {
+  appName: string;
+  latest: AccountReport;
+  audits: number;
+  /** The app's parts, app first: its own project and, when audited separately, its server. */
+  parts: PartSummary[];
+}
+
+/** Server projects are often named after the app plus a suffix ("PayFlow API"); they belong to the app. */
+const appKey = (r: AccountReport) => {
+  const name = r.appName.trim().toLowerCase();
+  return (r.part === "server" ? name.replace(/[\s._-]*(api|server|backend|service)$/i, "") : name) || name;
+};
+
+/** One entry per app (by name), newest audit first, with its app and server parts. Reports must be sorted newest first. */
 export function groupByApp(reports: AccountReport[]): AppSummary[] {
   const apps = new Map<string, AppSummary>();
   for (const r of reports) {
-    const key = r.appName.trim().toLowerCase();
-    const app = apps.get(key);
-    if (app) app.audits++;
-    else apps.set(key, { appName: r.appName, latest: r, audits: 1 });
+    const key = appKey(r);
+    const part: AppPart = r.part || "app";
+    let app = apps.get(key);
+    if (!app) apps.set(key, (app = { appName: r.appName, latest: r, audits: 0, parts: [] }));
+    app.audits++;
+    const p = app.parts.find((x) => x.part === part);
+    if (p) p.audits++;
+    else app.parts.push({ part, latest: r, audits: 1 });
+    // Name the app after its own project when there is one.
+    if (part === "app" && app.parts.find((x) => x.part === "app")?.latest === r) app.appName = r.appName;
   }
+  for (const app of apps.values()) app.parts.sort((a, b) => (a.part === b.part ? 0 : a.part === "app" ? -1 : 1));
   return [...apps.values()];
 }
 

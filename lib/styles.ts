@@ -336,4 +336,12 @@ ul.audits li:first-child{border-top:0;padding-top:0}
 .ng-done{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
 .ng-done .ng-status{margin:12px 0 0!important}
 .ng-done .btn{margin-top:12px}
+
+/* app card with a separately audited server */
+.pn-part{border-top:1px solid var(--line);padding-top:16px;display:flex;flex-direction:column;gap:14px}
+.pn-part-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.pn-part-head>div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pn-part-head b{font-size:15px}
+.pn-part-head .muted{font-size:13.5px}
+.ng-next{flex-basis:100%;margin:4px 0 0!important;font-size:14.5px!important;color:var(--ink-2)!important}
 `;

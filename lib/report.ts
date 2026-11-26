@@ -1,6 +1,6 @@
 import type { AuditSession, CheckResult, Evidence, Finding, Report, Severity, Verdict } from "./types";
 import { getRule, categoryName, viewRule } from "./rules";
-import { platformKinds } from "./detect";
+import { appPart, platformKinds } from "./detect";
 import type { DepScan } from "./osv";
 import type { RegistryScan } from "./registry";
 import { BRAND, bookHref } from "./config";
@@ -169,7 +169,16 @@ export function buildReport(
     registryScan: reg.status,
     checksRun: session.ruleIds.length,
     agent: session.agent,
+    part: appPart(session.profile),
   };
+}
+
+/**
+ * Whether to suggest auditing the app's server too: the project has no server code of its own
+ * (Next.js apps carry theirs in route handlers and server actions).
+ */
+export function suggestServerAudit(p: AuditSession["profile"]): boolean {
+  return !platformKinds(p).server && !p.frameworks.includes("nextjs");
 }
 
 const loc = (f: Finding) => {
@@ -179,7 +188,7 @@ const loc = (f: Finding) => {
 };
 
 /** What the coding agent shows the user in chat: the headline, top three, and the link. */
-export function chatSummary(r: Report, url: string): string {
+export function chatSummary(r: Report, url: string, serverHint = false): string {
   const lines = [
     `**${BRAND} audit: ${r.appName}**`,
     `Verdict: **${r.verdict}** · Score ${r.score}/100 (${r.grade})`,
@@ -196,6 +205,7 @@ export function chatSummary(r: Report, url: string): string {
   }
   lines.push("", `Full report with fix guidance: ${url}`, "The report is private: sign in with your account email to open it, and invite your team from there.");
   if (r.findings.length) lines.push(`Want MobileFirst engineers to fix these? Book a call: ${bookHref("chat", r.id, true)}`);
+  if (serverHint) lines.push("", "Is part of your app in another project, like its server? Open that project and type audit there too.");
   return lines.join("\n");
 }
 
