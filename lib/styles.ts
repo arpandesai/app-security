@@ -159,15 +159,7 @@ ul.audits li:first-child{border-top:0;padding-top:0}
 @media(max-width:560px){.term-body{font-size:12.5px;padding:16px 16px 20px;min-height:0}.tl-verdict{font-size:22px}}
 
 /* how it works */
-.lp-how{border-top:1px solid var(--lp-line);padding:56px 0 8px}
 .lp h2{font-family:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;font-weight:600;font-size:28px;letter-spacing:-.02em;margin:0 0 28px}
-.lp-steps{list-style:none;margin:0;padding:0;display:grid;gap:28px;counter-reset:step}
-@media(min-width:820px){.lp-steps{grid-template-columns:repeat(3,minmax(0,1fr));gap:40px}}
-.lp-steps li{counter-increment:step;position:relative;padding-top:58px}
-.lp-steps li::before{content:counter(step);position:absolute;top:0;left:0;font-family:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;
-  font-weight:700;font-size:44px;line-height:1;color:var(--lp-blue)}
-.lp-steps h3{font-size:19px;margin:0 0 6px;letter-spacing:-.01em}
-.lp-steps p{margin:0;color:var(--lp-ink2);font-size:16px;line-height:1.55;max-width:30em}
 
 /* proof + second CTA */
 .lp-proof{padding:64px 0 48px;max-width:760px}
@@ -176,6 +168,41 @@ ul.audits li:first-child{border-top:0;padding-top:0}
 .lp-stat sup{font-size:.5em;margin-left:2px}
 .lp-trust{font-size:16.5px;line-height:1.6;color:var(--lp-ink2);margin:0 0 26px}
 .btn.lp-again{padding:15px 24px;border-radius:12px;font-size:17px}
+/* Trust stripe: MobileFirst's clients */
+.lp-clients{border-top:1px solid var(--lp-line);padding:28px 0 4px;display:flex;flex-direction:column;gap:16px}
+.lp-clients p{margin:0;font-size:14.5px;color:var(--lp-ink3)}
+.lp-clients p a{color:var(--lp-ink2);font-weight:600;text-decoration:none}
+.lp-clients p a:hover{text-decoration:underline}
+.lp-clients ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;align-items:center;gap:18px 40px}
+.lp-clients img{display:block;height:28px;width:auto;max-width:108px;object-fit:contain;filter:grayscale(1);opacity:.72;mix-blend-mode:multiply}
+@media(min-width:980px){.lp-clients ul{flex-wrap:nowrap;justify-content:space-between;gap:24px}}
+@media(max-width:600px){.lp-clients ul{gap:16px 28px}.lp-clients img{height:22px;max-width:104px}}
+/* Scrolling security tips */
+.lp-tips{display:flex;align-items:stretch;margin:28px 0 0;background:var(--lp-ink);color:#e6ecf7;border-radius:14px;overflow:hidden}
+.lp-tips-label{flex:none;display:flex;align-items:center;padding:0 18px;font-weight:600;font-size:14px;color:#9db8ff;border-right:1px solid #2a3858;white-space:nowrap}
+.lp-tips-window{flex:1;min-width:0;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
+.lp-tips-track{display:flex;width:max-content;animation:lptips 110s linear infinite}
+.lp-tips:hover .lp-tips-track,.lp-tips:focus-within .lp-tips-track,.lp-tips.paused .lp-tips-track{animation-play-state:paused}
+.lp-tips-row{display:flex;list-style:none;margin:0;padding:0}
+.lp-tips-row li{white-space:nowrap;padding:15px 30px;font-size:15px;position:relative}
+.lp-tips-row li::after{content:"";position:absolute;right:-3px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:#5b8cff}
+@keyframes lptips{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.lp-tips-pause{flex:none;appearance:none;border:0;border-left:1px solid #2a3858;background:none;color:#c4cde0;font:600 13px/1 Inter,ui-sans-serif,system-ui,sans-serif;padding:0 16px;cursor:pointer;min-width:64px}
+.lp-tips-pause:hover{color:#fff}
+.lp-tips-pause:focus-visible{outline:3px solid #7aa2ff;outline-offset:-3px}
+@media(max-width:600px){.lp-tips-label{display:none}.lp-tips-row li{font-size:14px;padding:13px 24px}}
+@media(prefers-reduced-motion:reduce){.lp-tips-track{animation:none}.lp-tips-window{overflow-x:auto;-webkit-mask-image:none;mask-image:none}.lp-tips-row[aria-hidden]{display:none}.lp-tips-pause{display:none}}
+/* Found issues? Our engineers fix them. */
+.lp-fix{border-top:1px solid var(--lp-line);padding:56px 0 64px;display:grid;gap:32px}
+@media(min-width:900px){.lp-fix{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:64px;align-items:center}}
+.lp-fix h2{font-family:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;font-weight:700;font-size:clamp(26px,3vw,34px);line-height:1.15;letter-spacing:-.02em;margin:0 0 12px}
+.lp-fix p{font-size:17px;line-height:1.6;color:var(--lp-ink2);margin:0 0 24px;max-width:32em}
+.lp-quote{margin:0;background:#fff;border:1px solid var(--lp-line);border-radius:16px;padding:28px 28px 24px}
+.lp-quote blockquote{margin:0}
+.lp-quote blockquote p{font-family:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;font-weight:500;font-size:clamp(19px,2vw,22px);line-height:1.4;color:var(--lp-ink);margin:0 0 22px;max-width:none}
+.lp-quote figcaption{display:flex;align-items:center;gap:14px;font-size:14.5px;line-height:1.4;color:var(--lp-ink3)}
+.lp-quote figcaption img{flex:none;width:48px;height:48px;border-radius:50%;object-fit:cover;background:#e8edf6}
+.lp-quote figcaption b{display:block;color:var(--lp-ink);font-size:15.5px;font-weight:600}
 .lp-foot{border-top:1px solid var(--lp-line);padding:24px 0 48px;font-size:13px;color:var(--lp-ink3)}
 .lp-foot p{margin:4px 0}
 .lp-src a{color:inherit}
