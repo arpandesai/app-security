@@ -173,10 +173,14 @@ ul.audits li:first-child{border-top:0;padding-top:0}
 .lp-clients p{margin:0;font-size:14.5px;color:var(--lp-ink3)}
 .lp-clients p a{color:var(--lp-ink2);font-weight:600;text-decoration:none}
 .lp-clients p a:hover{text-decoration:underline}
-.lp-clients ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;align-items:center;gap:18px 40px}
-.lp-clients img{display:block;height:28px;width:auto;max-width:108px;object-fit:contain;filter:grayscale(1);opacity:.72;mix-blend-mode:multiply}
+.lp-clients ul{--row:44px;--k:1;list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;align-items:center;gap:18px 40px;min-height:var(--row)}
+.lp-clients li{display:flex;align-items:center;height:var(--row)}
+.lp-clients img{display:block;height:calc(var(--h) * var(--k));width:auto;max-width:none;object-fit:contain;
+  margin-block:min(0px,calc((var(--row) - var(--h) * var(--k)) / 2));filter:grayscale(1);opacity:.74;mix-blend-mode:multiply}
+.lp-clients img.t-lift{filter:grayscale(1) brightness(.55) contrast(1.35);opacity:.8}
+.lp-clients img.t-soft{opacity:.6}
 @media(min-width:980px){.lp-clients ul{flex-wrap:nowrap;justify-content:space-between;gap:24px}}
-@media(max-width:600px){.lp-clients ul{gap:16px 28px}.lp-clients img{height:22px;max-width:104px}}
+@media(max-width:600px){.lp-clients ul{--row:34px;--k:.7;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px 10px}.lp-clients li{justify-content:flex-start}}
 /* Scrolling security tips */
 .lp-tips{display:flex;align-items:stretch;margin:28px 0 0;background:var(--lp-ink);color:#e6ecf7;border-radius:14px;overflow:hidden}
 .lp-tips-label{flex:none;display:flex;align-items:center;padding:0 18px;font-weight:600;font-size:14px;color:#9db8ff;border-right:1px solid #2a3858;white-space:nowrap}
@@ -205,7 +209,6 @@ ul.audits li:first-child{border-top:0;padding-top:0}
 .lp-quote figcaption b{display:block;color:var(--lp-ink);font-size:15.5px;font-weight:600}
 .lp-foot{border-top:1px solid var(--lp-line);padding:24px 0 48px;font-size:13px;color:var(--lp-ink3)}
 .lp-foot p{margin:4px 0}
-.lp-src a{color:inherit}
 
 /* ---------- Customer panel ---------- */
 .pn{display:grid;min-height:100vh}
